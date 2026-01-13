@@ -22,20 +22,31 @@
   }
   
   html {
-    background-color: #F9FAFB;
+    background-color: #F9FAFB !important;
   }
   
   body {
     @apply bg-gray-50 text-gray-900;
-    background-color: #F9FAFB;
+    background-color: #F9FAFB !important;
     font-feature-settings: "kern", "liga", "clig", "calt";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+  
+  /* Prevent black screen on iOS */
+  #__next {
+    background-color: #F9FAFB !important;
+    min-height: 100vh;
+  }
+  
+  main {
+    background-color: #F9FAFB !important;
   }
   
   /* iOS Splash Screen Enhancement */
   @supports (-webkit-touch-callout: none) {
-    body {
+    html, body, #__next, main {
       background-color: #F9FAFB !important;
     }
   }
