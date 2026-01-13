@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, Clock, XCircle, Truck, Gas, Home, RefreshCw } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Truck, Flame, Home, RefreshCw } from 'lucide-react';
 
 const statusConfig = {
   pending: { 
@@ -13,11 +13,11 @@ const statusConfig = {
   },
   collected: { 
     color: 'bg-purple-50 text-purple-700 border-purple-200', 
-    icon: Gas 
+    icon: Flame 
   },
   at_station: { 
     color: 'bg-indigo-50 text-indigo-700 border-indigo-200', 
-    icon: Gas 
+    icon: Flame 
   },
   on_the_way: { 
     color: 'bg-brand-deep-blue/10 text-brand-deep-blue border-brand-deep-blue/20', 

@@ -8,7 +8,14 @@ import { Bell, CheckCircle, AlertCircle, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 // Mock notifications
-const notifications = [
+const notifications: Array<{
+  id: string;
+  type: 'success' | 'warning' | 'info';
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+}> = [
   {
     id: '1',
     type: 'success',
