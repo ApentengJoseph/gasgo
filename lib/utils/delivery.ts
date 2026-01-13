@@ -55,7 +55,7 @@ export async function calculateDeliveryETA(
           avoidHighways: false,
           avoidTolls: false,
         },
-        (response, status) => {
+        (response: google.maps.DistanceMatrixResponse | null, status: google.maps.DistanceMatrixStatus) => {
           if (status === 'OK' && response && response.rows[0] && response.rows[0].elements[0]) {
             const element = response.rows[0].elements[0];
             if (element.status === 'OK') {
@@ -84,7 +84,7 @@ export async function calculateDeliveryETA(
           avoidHighways: false,
           avoidTolls: false,
         },
-        (response, status) => {
+        (response: google.maps.DistanceMatrixResponse | null, status: google.maps.DistanceMatrixStatus) => {
           if (status === 'OK' && response && response.rows[0] && response.rows[0].elements[0]) {
             const element = response.rows[0].elements[0];
             if (element.status === 'OK') {

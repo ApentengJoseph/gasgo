@@ -117,7 +117,6 @@ export default function LiveTrackingMap({
       streetViewControl: false,
       fullscreenControl: false,
       zoomControl: true,
-      mapTypeControl: false, // Hide map type control to avoid text issues
       styles: [
         {
           featureType: 'poi',

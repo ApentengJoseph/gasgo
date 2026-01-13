@@ -14,6 +14,7 @@ interface MapViewProps {
     icon?: string;
   }>;
   userLocation?: { lat: number; lng: number } | null;
+  selectedMarkerId?: string | null;
   zoom?: number;
   height?: string;
   className?: string;
