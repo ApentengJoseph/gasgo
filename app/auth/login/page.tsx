@@ -231,7 +231,7 @@ export default function LoginPage() {
           )}
 
           <div className="mt-6 text-center text-sm text-gray-500">
-            By continuing, you agree to Gaso's{' '}
+            By continuing, you agree to Gaso&apos;s{' '}
             <Link href="/terms" className="text-brand-deep-blue">
               Terms of Service
             </Link>

@@ -226,7 +226,7 @@ export default function HomePage() {
             <div className="flex-1">
               <h2 className="text-title-md font-bold text-gray-900 mb-2">About Gaso</h2>
               <p className="text-sm text-gray-700 leading-relaxed mb-4">
-                Gaso is Koforidua's leading gas delivery service, bringing convenience and reliability to your doorstep. 
+                Gaso is Koforidua&apos;s leading gas delivery service, bringing convenience and reliability to your doorstep. 
                 We connect you with trusted gas stations across the city, ensuring fast, safe, and affordable gas delivery 
                 whenever you need it.
               </p>

@@ -24,7 +24,7 @@ export default function AdminDashboard() {
               <Package className="w-6 h-6 text-brand-deep-blue" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Today's Orders</p>
+              <p className="text-xs text-gray-500">Today&apos;s Orders</p>
               <p className="text-xl font-bold text-gray-900">47</p>
             </div>
           </div>

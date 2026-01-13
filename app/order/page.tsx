@@ -57,6 +57,7 @@ export default function OrderPage() {
     if (defaultAddress && !order.deliveryLocation) {
       updateAddress(defaultAddress.address, defaultAddress.location);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Run once on mount
   
   // Update instructions when state changes
@@ -81,6 +82,7 @@ export default function OrderPage() {
         setSelectedAddress('new'); // Mark as new address
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.deliveryAddress]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -324,7 +326,7 @@ export default function OrderPage() {
       {/* Info Message */}
       <GlassCard className="p-4 bg-brand-deep-blue/5 border-brand-deep-blue/10">
         <p className="text-sm text-gray-700">
-          <span className="font-semibold">💡 No signup needed yet!</span> You'll create an account or sign in at checkout.
+          <span className="font-semibold">💡 No signup needed yet!</span> You&apos;ll create an account or sign in at checkout.
         </p>
       </GlassCard>
 

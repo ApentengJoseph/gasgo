@@ -24,7 +24,7 @@ export default function RiderDashboard() {
               <DollarSign className="w-5 h-5 text-brand-deep-blue" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Today's Earnings</p>
+              <p className="text-xs text-gray-500">Today&apos;s Earnings</p>
               <p className="text-lg font-bold text-gray-900">GH₵245.50</p>
             </div>
           </div>

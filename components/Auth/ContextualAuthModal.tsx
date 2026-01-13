@@ -249,7 +249,7 @@ export default function ContextualAuthModal({
 
                 {/* Privacy Assurance */}
                 <p className="text-xs text-gray-500 text-center pt-2">
-                  By continuing, you agree to Gaso's{' '}
+                  By continuing, you agree to Gaso&apos;s{' '}
                   <a href="/terms" className="text-brand-deep-blue hover:underline">
                     Terms of Service
                   </a>{' '}

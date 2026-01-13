@@ -341,6 +341,7 @@ export default function MapView({
     
     map.setCenter(center);
     map.setZoom(zoom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, center.lat, center.lng, zoom]);
 
   // Zoom to selected marker when it changes

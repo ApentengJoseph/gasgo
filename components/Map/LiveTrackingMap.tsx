@@ -40,11 +40,18 @@ export default function LiveTrackingMap({
   // Store positions in refs to avoid dependency array issues
   const stationPositionRef = useRef(stationPosition);
   const destinationPositionRef = useRef(destinationPosition);
+  const onRiderPositionChangeRef = useRef(onRiderPositionChange);
+  
+  // Update callback ref when it changes
+  useEffect(() => {
+    onRiderPositionChangeRef.current = onRiderPositionChange;
+  }, [onRiderPositionChange]);
   
   // Update refs when positions change
   useEffect(() => {
     stationPositionRef.current = stationPosition;
     destinationPositionRef.current = destinationPosition;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stationPosition.lat, stationPosition.lng, destinationPosition.lat, destinationPosition.lng]);
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 
@@ -212,6 +219,7 @@ export default function LiveTrackingMap({
       console.error('Error initializing map:', error);
       setIsLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded, loadError, apiKey, map, riderPosition]); // Include riderPosition for initial center
 
   // Animate rider movement (Uber/Bolt style) - Two-leg journey: Rider → Station → User Location
@@ -291,8 +299,8 @@ export default function LiveTrackingMap({
         setRiderPosition(currentPosition);
         
         // Notify parent component of position change (debounced)
-        if (onRiderPositionChange) {
-          onRiderPositionChange(currentPosition);
+        if (onRiderPositionChangeRef.current) {
+          onRiderPositionChangeRef.current(currentPosition);
         }
         
         lastNotifyTime = now;
@@ -361,6 +369,7 @@ export default function LiveTrackingMap({
         animationRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, apiKey, stationPosition.lat, stationPosition.lng, destinationPosition.lat, destinationPosition.lng, initialRiderPosition.lat, initialRiderPosition.lng]); // Use individual values instead of objects
 
   // Fallback if no API key

@@ -56,7 +56,7 @@ export default function ServiceAreaModal({ isOpen, onClose }: ServiceAreaModalPr
 
                 {/* Message */}
                 <p className="text-gray-600 text-center mb-6">
-                  We're currently serving <span className="font-semibold text-brand-deep-blue">Koforidua and surrounding areas</span> including Oyoko, Okorase, Osabene, Large Town, and more.
+                  We&apos;re currently serving <span className="font-semibold text-brand-deep-blue">Koforidua and surrounding areas</span> including Oyoko, Okorase, Osabene, Large Town, and more.
                 </p>
 
                 {/* Service areas list */}
@@ -75,7 +75,7 @@ export default function ServiceAreaModal({ isOpen, onClose }: ServiceAreaModalPr
                 {/* Info message */}
                 <div className="bg-brand-deep-blue/5 border border-brand-deep-blue/20 rounded-xl p-4 mb-6">
                   <p className="text-sm text-gray-700 text-center">
-                    <span className="font-semibold">Don't worry!</span> We're expanding rapidly and will be in your area very soon. 
+                    <span className="font-semibold">Don&apos;t worry!</span> We&apos;re expanding rapidly and will be in your area very soon. 
                     You can still place an order for delivery to any address within our current service area.
                   </p>
                 </div>

@@ -24,7 +24,7 @@ export default function Error({
           Something went wrong!
         </h2>
         <p className="text-gray-600 mb-6">
-          We're sorry, but an unexpected error occurred. Please try again.
+          We&apos;re sorry, but an unexpected error occurred. Please try again.
         </p>
         <PrimaryButton onClick={() => reset()} className="mx-auto">
           <RefreshCw className="w-5 h-5" />
