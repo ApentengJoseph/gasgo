@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import dynamic from 'next/dynamic';
-import PWAInstallPrompt from '@/components/PWA/InstallPrompt';
 import { Suspense } from 'react';
 
 // Dynamically import BottomNavigation with no SSR to prevent hydration issues
@@ -49,7 +48,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Gaso" />
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="Gaso" />
         <meta name="msapplication-TileColor" content="#0F4C81" />
