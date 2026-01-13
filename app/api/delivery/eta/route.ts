@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { calculateETA } from '@/lib/utils/distance';
+// import { calculateETA } from '@/lib/utils/distance';
 import { z } from 'zod';
 
 const calculateETASchema = z.object({
@@ -19,38 +19,9 @@ const calculateETASchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { origin, destination } = calculateETASchema.parse(body);
-
-    const apiKey =
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-      process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY ||
-      '';
-
-    const result = await calculateETA(origin, destination, apiKey);
-
-    return NextResponse.json({
-      success: true,
-      distance: result.distance,
-      duration: result.duration,
-      estimatedArrival: new Date(
-        Date.now() + result.duration * 60 * 1000
-      ).toISOString(),
-    });
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Invalid request data', details: error.errors },
-        { status: 400 }
-      );
-    }
-
-    console.error('Calculate ETA error:', error);
-    return NextResponse.json(
-      { error: 'Failed to calculate ETA' },
-      { status: 500 }
-    );
-  }
+  // TODO: Implement when backend is ready
+  return NextResponse.json(
+    { error: 'Not implemented yet' },
+    { status: 501 }
+  );
 }
-

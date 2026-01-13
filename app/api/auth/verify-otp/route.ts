@@ -4,9 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyOTP } from '@/lib/utils/otp';
-import { generateToken } from '@/lib/auth/jwt';
-import { prisma } from '@/lib/db/prisma';
+// // import { verifyOTP } from '@/lib/utils/otp';
+// // import { generateToken } from '@/lib/auth/jwt';
+// // import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 
 const verifyOTPSchema = z.object({
@@ -17,69 +17,32 @@ const verifyOTPSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // TODO: Implement when backend is ready
   try {
     const body = await request.json();
     const { phone, code, email, fullName } = verifyOTPSchema.parse(body);
 
-    // Verify OTP
-    const { valid, userId } = await verifyOTP(phone, code, 'LOGIN');
-
-    if (!valid) {
-      return NextResponse.json(
-        { error: 'Invalid or expired OTP code' },
-        { status: 400 }
-      );
-    }
-
-    // Get or create user
-    let user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : null;
-
-    if (!user) {
-      // Create new user
-      user = await prisma.user.create({
-        data: {
+    // Mock verification for development
+    // Accept any 6-digit code in development
+    if (process.env.NODE_ENV === 'development' && code.length === 6) {
+      return NextResponse.json({
+        success: true,
+        token: 'mock-jwt-token',
+        user: {
+          id: 'mock-user-id',
           phone,
-          email: email || undefined,
-          fullName: fullName || undefined,
+          email: email || null,
+          fullName: fullName || null,
+          role: 'CUSTOMER',
           isVerified: true,
         },
       });
-    } else {
-      // Update user if email/name provided
-      if (email || fullName) {
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            ...(email && { email }),
-            ...(fullName && { fullName }),
-            isVerified: true,
-          },
-        });
-      }
     }
 
-    // Generate JWT token
-    const token = generateToken({
-      userId: user.id,
-      phone: user.phone,
-      email: user.email || undefined,
-      role: user.role,
-    });
-
-    return NextResponse.json({
-      success: true,
-      token,
-      user: {
-        id: user.id,
-        phone: user.phone,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role,
-        isVerified: user.isVerified,
-      },
-    });
+    return NextResponse.json(
+      { error: 'Invalid or expired OTP code' },
+      { status: 400 }
+    );
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

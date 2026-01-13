@@ -4,8 +4,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createOTP, sendOTPSMS, sendOTPEmail } from '@/lib/utils/otp';
-import { prisma } from '@/lib/db/prisma';
+// // import { createOTP, sendOTPSMS, sendOTPEmail } from '@/lib/utils/otp';
+// // import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 
 const sendOTPSchema = z.object({
@@ -15,35 +15,20 @@ const sendOTPSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // TODO: Implement when backend is ready
+  // For now, return a mock response for development
   try {
     const body = await request.json();
     const { phone, email, type } = sendOTPSchema.parse(body);
 
-    // Check if user exists (for login/verify)
-    let user = null;
-    if (type === 'LOGIN' || type === 'VERIFY_PHONE') {
-      user = await prisma.user.findUnique({
-        where: { phone },
-      });
-    }
-
-    // Generate and save OTP
-    const code = await createOTP(phone, email || null, type, user?.id);
-
-    // Send OTP via SMS
-    await sendOTPSMS(phone, code);
-
-    // Send OTP via Email if provided
-    if (email) {
-      await sendOTPEmail(email, code);
-    }
+    // Mock OTP code for development
+    const mockCode = '123456';
 
     return NextResponse.json({
       success: true,
-      message: 'OTP sent successfully',
-      // In production, don't send code in response
-      // For development/testing only:
-      ...(process.env.NODE_ENV === 'development' && { code }),
+      message: 'OTP sent successfully (mock)',
+      // In development, return mock code
+      ...(process.env.NODE_ENV === 'development' && { code: mockCode }),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
