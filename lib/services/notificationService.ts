@@ -119,11 +119,12 @@ class NotificationService {
           data: options.data || {},
           requireInteraction: options.requireInteraction || false,
           silent: options.silent || false,
+          // @ts-ignore - vibrate is supported but not in TypeScript definitions
           vibrate: [200, 100, 200],
         });
       } else {
         // Fallback to direct Notification API
-        new Notification(options.title, {
+        const notificationOptions: NotificationOptions = {
           body: options.body,
           icon: options.icon || '/apple-touch-icon.png',
           badge: options.badge || '/favicon-96x96.png',
@@ -131,7 +132,10 @@ class NotificationService {
           data: options.data || {},
           requireInteraction: options.requireInteraction || false,
           silent: options.silent || false,
-        });
+        };
+        // @ts-ignore - vibrate is supported but not in TypeScript definitions
+        notificationOptions.vibrate = [200, 100, 200];
+        new Notification(options.title, notificationOptions);
       }
       console.log('[Notifications] Notification shown:', options.title);
     } catch (error) {
