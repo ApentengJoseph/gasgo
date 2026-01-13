@@ -400,13 +400,11 @@ export default function AddressAutocomplete({
         )}
       </div>
       
-      {/* Service Area Modal - Rendered outside input context using portal */}
-      {typeof window !== 'undefined' && (
-        <ServiceAreaModal
-          isOpen={showServiceAreaModal}
-          onClose={() => setShowServiceAreaModal(false)}
-        />
-      )}
+      {/* Service Area Modal - Rendered via React Portal at document.body */}
+      <ServiceAreaModal
+        isOpen={showServiceAreaModal}
+        onClose={() => setShowServiceAreaModal(false)}
+      />
     </>
   );
 }

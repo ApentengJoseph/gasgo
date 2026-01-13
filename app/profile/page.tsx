@@ -23,15 +23,13 @@ export default function ProfilePage() {
             <p className="text-sm text-gray-500">kwame@example.com</p>
           </div>
         </div>
-        <PrimaryButton
-          variant="secondary"
-          fullWidth
+        <button
           onClick={() => router.push('/profile/edit')}
-          className="bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-colors"
+          className="w-full px-6 py-3 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
         >
           <User className="w-4 h-4" />
           <span>Edit Profile</span>
-        </PrimaryButton>
+        </button>
       </GlassCard>
 
       {/* Menu Items */}
@@ -127,8 +125,7 @@ export default function ProfilePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.5 }}
       >
-        <PrimaryButton
-          fullWidth
+        <button
           onClick={() => {
             if (typeof window !== 'undefined') {
               localStorage.removeItem('isLoggedIn');
@@ -137,11 +134,11 @@ export default function ProfilePage() {
               router.push('/auth/login');
             }
           }}
-          className="bg-white border-2 border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 font-semibold transition-colors"
+          className="w-full px-6 py-3 bg-white border-2 border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
         >
           <LogOut className="w-4 h-4" />
           <span>Log Out</span>
-        </PrimaryButton>
+        </button>
       </motion.div>
     </div>
   );

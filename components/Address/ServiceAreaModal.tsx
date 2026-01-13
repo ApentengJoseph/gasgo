@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, X, Sparkles } from 'lucide-react';
 import PrimaryButton from '@/components/Buttons/PrimaryButton';
@@ -11,7 +13,14 @@ interface ServiceAreaModalProps {
 }
 
 export default function ServiceAreaModal({ isOpen, onClose }: ServiceAreaModalProps) {
-  return (
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <motion.div
@@ -20,6 +29,7 @@ export default function ServiceAreaModal({ isOpen, onClose }: ServiceAreaModalPr
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
           onClick={onClose}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <motion.div
             initial={{ scale: 0.9, y: 20 }}
@@ -103,5 +113,9 @@ export default function ServiceAreaModal({ isOpen, onClose }: ServiceAreaModalPr
       )}
     </AnimatePresence>
   );
+
+  if (!mounted) return null;
+
+  return createPortal(modalContent, document.body);
 }
 
