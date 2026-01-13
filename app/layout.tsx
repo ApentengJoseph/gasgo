@@ -47,13 +47,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="h-full">
+    <html lang="en" className="h-full" style={{ backgroundColor: '#F9FAFB' }}>
       <head>
+        {/* Critical inline style to prevent white flash on iOS */}
+        <style dangerouslySetInnerHTML={{
+          __html: `
+            html, body { background-color: #F9FAFB !important; }
+            body { margin: 0; padding: 0; }
+          `
+        }} />
+        
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Gaso" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        
+        {/* iOS Splash Screens - Prevents white flash on launch */}
+        <link rel="apple-touch-startup-image" href="/apple-touch-icon.png" />
+        
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="Gaso" />
         <meta name="msapplication-TileColor" content="#0F4C81" />
@@ -62,10 +74,10 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <script src="https://js.paystack.co/v1/inline.js" async></script>
       </head>
-      <body className={`${inter.className} h-full bg-gradient-to-b from-gray-50 to-gray-100`}>
+      <body className={`${inter.className} h-full`} style={{ backgroundColor: '#F9FAFB' }}>
         <GoogleMapsProvider>
           {/* Main Content with safe areas */}
-          <main className="min-h-screen pb-20 pt-4">
+          <main className="min-h-screen pb-20 pt-4 bg-gradient-to-b from-gray-50 to-gray-100">
             <div className="max-w-md mx-auto px-4">
               {children}
             </div>

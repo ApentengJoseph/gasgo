@@ -83,9 +83,11 @@ export default function OrdersPage() {
             clearOrder();
             router.push('/stations');
           }}
+          className="whitespace-nowrap"
         >
           <Plus className="w-4 h-4" />
-          <span>New Order</span>
+          <span className="hidden xs:inline">New Order</span>
+          <span className="xs:hidden">New</span>
         </PrimaryButton>
       </div>
 

@@ -297,7 +297,8 @@ export default function StationsPage() {
           className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
         >
           <Map className="w-3.5 h-3.5" />
-          <span className="text-xs font-medium whitespace-nowrap">{showMap ? 'Hide' : 'Show'} Map</span>
+          <span className="text-xs font-medium whitespace-nowrap hidden xs:inline">{showMap ? 'Hide' : 'Show'} Map</span>
+          <span className="text-xs font-medium whitespace-nowrap xs:hidden">{showMap ? 'Hide' : 'Show'}</span>
         </button>
       </div>
 
@@ -414,39 +415,39 @@ export default function StationsPage() {
               }`}
               onClick={() => handleSelectStation(station.id)}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <h3 className="text-title-md font-bold text-gray-900">{station.name}</h3>
+                    <h3 className="text-title-md font-bold text-gray-900 truncate">{station.name}</h3>
                     {selectedStation === station.id && (
-                      <CheckCircle className="w-5 h-5 text-brand-deep-blue" />
+                      <CheckCircle className="w-5 h-5 text-brand-deep-blue flex-shrink-0" />
                     )}
                     {station.googleMapsVerified && (
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full">
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full flex-shrink-0">
                         <BadgeCheck className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-xs font-semibold text-green-700">Verified on Google</span>
+                        <span className="text-xs font-semibold text-green-700 whitespace-nowrap">Verified on Google</span>
                       </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 text-sm mb-1 flex-wrap">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-deep-blue/10 text-brand-deep-blue rounded-full border border-brand-deep-blue/20">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span className="font-semibold">{station.distance ? `${station.distance.toFixed(1)} km` : 'N/A'}</span>
-                      <span className="text-xs opacity-70">({station.roundtripDistance ? `${station.roundtripDistance.toFixed(1)} km RT` : 'N/A'})</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-deep-blue/10 text-brand-deep-blue rounded-full border border-brand-deep-blue/20 whitespace-nowrap">
+                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-semibold text-xs sm:text-sm">{station.distance ? `${station.distance.toFixed(1)} km` : 'N/A'}</span>
+                      <span className="text-xs opacity-70 hidden xs:inline">({station.roundtripDistance ? `${station.roundtripDistance.toFixed(1)} km RT` : 'N/A'})</span>
                     </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-energy-orange/10 text-brand-energy-orange rounded-full border border-brand-energy-orange/20">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span className="font-semibold">{station.estimatedTime ? formatDuration(station.estimatedTime) : 'N/A'}</span>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-energy-orange/10 text-brand-energy-orange rounded-full border border-brand-energy-orange/20 whitespace-nowrap">
+                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="font-semibold text-xs sm:text-sm">{station.estimatedTime ? formatDuration(station.estimatedTime) : 'N/A'}</span>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <StarRating rating={station.rating} readonly size="sm" />
-                      <span className="text-sm font-semibold text-gray-700">{station.rating}</span>
+                      <span className="text-xs sm:text-sm font-semibold text-gray-700">{station.rating}</span>
                     </div>
                   </div>
-                  <p className="text-sm text-gray-500">{station.address}</p>
+                  <p className="text-xs sm:text-sm text-gray-500 line-clamp-2">{station.address}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-title-md font-bold text-brand-deep-blue">
+                <div className="text-left sm:text-right flex-shrink-0">
+                  <p className="text-lg sm:text-title-md font-bold text-brand-deep-blue">
                     GH₵{station.pricePerKg.toFixed(2)}
                   </p>
                   <p className="text-xs text-gray-500">per kg</p>
@@ -468,7 +469,7 @@ export default function StationsPage() {
                           handleSelectKg(size.kg);
                         }}
                         className={`
-                          p-3 rounded-lg border-2 transition-all
+                          p-2.5 sm:p-3 rounded-lg border-2 transition-all
                           ${
                             selectedKg === size.kg && !customKg
                               ? 'border-brand-deep-blue bg-brand-deep-blue/5'
@@ -477,8 +478,8 @@ export default function StationsPage() {
                         `}
                       >
                         <div className="text-center">
-                          <Flame className="w-6 h-6 mx-auto mb-1 text-brand-energy-orange" />
-                          <p className="text-sm font-semibold text-gray-900">{size.label}</p>
+                          <Flame className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 text-brand-energy-orange" />
+                          <p className="text-xs sm:text-sm font-semibold text-gray-900">{size.label}</p>
                         </div>
                       </button>
                     ))}
@@ -507,11 +508,11 @@ export default function StationsPage() {
                   {/* Price Preview */}
                   {selectedKg && selectedKg > 0 && (
                     <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs sm:text-sm text-gray-600 truncate">
                           {selectedKg}kg × GH₵{station.pricePerKg.toFixed(2)}/kg
                         </span>
-                        <span className="text-lg font-bold text-brand-deep-blue">
+                        <span className="text-base sm:text-lg font-bold text-brand-deep-blue whitespace-nowrap flex-shrink-0">
                           GH₵{calculatedPrice.toFixed(2)}
                         </span>
                       </div>

@@ -23,7 +23,7 @@ export default function HomePage() {
   // Don't render order-dependent content until mounted to prevent hydration mismatch
   if (!mounted) {
     return (
-      <div className="space-y-6 py-6">
+      <div className="space-y-6 py-6" style={{ backgroundColor: '#F9FAFB', minHeight: '100vh' }}>
         <motion.div
           initial={false}
           animate={{ opacity: 1, y: 0 }}

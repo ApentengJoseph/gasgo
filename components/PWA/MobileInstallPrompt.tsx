@@ -101,30 +101,38 @@ export default function MobileInstallPrompt() {
         exit={{ y: 100, opacity: 0 }}
         className="fixed bottom-24 left-4 right-4 z-50 max-w-md mx-auto"
       >
-        <div className="glass-card p-4 flex flex-col gap-3 shadow-2xl border-2 border-brand-deep-blue/20">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">
+        <div 
+          className="p-4 flex flex-col gap-3 shadow-2xl border-2 border-brand-deep-blue/20 rounded-2xl"
+          style={{
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(12px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.2)',
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-gray-900 mb-1 text-base sm:text-lg">
                 Install Gaso App
               </h3>
               {isIOS ? (
-                <div className="text-sm text-gray-600 space-y-2">
+                <div className="text-xs sm:text-sm text-gray-700 space-y-2">
                   <p>To install this app on your iPhone:</p>
                   <ol className="list-decimal list-inside space-y-1 ml-2">
-                    <li>Tap the <Share2 className="w-4 h-4 inline" /> Share button</li>
+                    <li>Tap the <Share2 className="w-3.5 h-3.5 inline" /> Share button</li>
                     <li>Scroll down and tap &quot;Add to Home Screen&quot;</li>
                     <li>Tap &quot;Add&quot; to confirm</li>
                   </ol>
                 </div>
               ) : (
-                <p className="text-sm text-gray-600">
+                <p className="text-xs sm:text-sm text-gray-700">
                   Add to home screen for faster access and offline support
                 </p>
               )}
             </div>
             <button
               onClick={handleDismiss}
-              className="p-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
+              className="p-1.5 text-gray-500 hover:text-gray-700 flex-shrink-0 transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
@@ -135,18 +143,18 @@ export default function MobileInstallPrompt() {
             {isAndroid && deferredPrompt ? (
               <button
                 onClick={handleInstall}
-                className="flex-1 px-4 py-2.5 bg-brand-deep-blue text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-brand-corporate-blue transition-colors"
+                className="flex-1 px-4 py-2.5 bg-brand-deep-blue text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-brand-corporate-blue transition-colors active:scale-95"
               >
                 <Download className="w-4 h-4" />
-                Install Now
+                <span className="whitespace-nowrap">Install Now</span>
               </button>
             ) : isIOS ? (
               <button
                 onClick={handleInstall}
-                className="flex-1 px-4 py-2.5 bg-brand-deep-blue text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-brand-corporate-blue transition-colors"
+                className="flex-1 px-4 py-2.5 bg-brand-deep-blue text-white rounded-lg font-medium text-sm flex items-center justify-center gap-2 hover:bg-brand-corporate-blue transition-colors active:scale-95"
               >
                 <Share2 className="w-4 h-4" />
-                Got it!
+                <span className="whitespace-nowrap">Got it!</span>
               </button>
             ) : null}
           </div>
