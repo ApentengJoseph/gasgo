@@ -134,7 +134,7 @@ export default function NotificationTest() {
             {isTestRunning && (
               <div className="p-3 rounded-lg bg-green-50 border border-green-200">
                 <p className="text-sm text-green-700 text-center">
-                  ✓ Test notifications are running. You'll receive a notification every 5 minutes.
+                  ✓ Test notifications are running. You&apos;ll receive a notification every 5 minutes.
                 </p>
               </div>
             )}
