@@ -66,11 +66,6 @@ export default function RootLayout({
           
           {/* Bottom Navigation - Client only to avoid hydration issues */}
           <BottomNavigation />
-          
-          {/* PWA Install Prompt */}
-          <Suspense fallback={null}>
-            <PWAInstallPrompt />
-          </Suspense>
         </GoogleMapsProvider>
       </body>
     </html>
