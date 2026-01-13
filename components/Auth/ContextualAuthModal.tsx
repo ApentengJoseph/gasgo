@@ -190,8 +190,8 @@ export default function ContextualAuthModal({
                     Phone Number
                   </label>
                   <div className="flex gap-2">
-                    <div className="w-24">
-                      <select className="w-full px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent">
+                    <div className="w-24 flex-shrink-0 min-w-[96px]">
+                      <select className="w-full px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent text-sm sm:text-base">
                         <option value="+233">+233</option>
                       </select>
                     </div>

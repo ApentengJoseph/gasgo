@@ -27,7 +27,7 @@ export default function ProfilePage() {
           variant="secondary"
           fullWidth
           onClick={() => router.push('/profile/edit')}
-          className="bg-white border-2 border-brand-deep-blue/40 text-brand-deep-blue hover:bg-brand-deep-blue/10 active:bg-brand-deep-blue/15 font-semibold"
+          className="bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-colors"
         >
           <User className="w-4 h-4" />
           <span>Edit Profile</span>
@@ -129,10 +129,17 @@ export default function ProfilePage() {
       >
         <PrimaryButton
           fullWidth
-          onClick={() => router.push('/auth/login')}
-          className="bg-red-50 text-red-700 border-2 border-red-300 hover:bg-red-100 active:bg-red-200 font-semibold"
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('isLoggedIn');
+              localStorage.removeItem('gaso-user-phone');
+              localStorage.removeItem('gaso-user-email');
+              router.push('/auth/login');
+            }
+          }}
+          className="bg-white border-2 border-red-300 text-red-700 hover:bg-red-50 active:bg-red-100 font-semibold transition-colors"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-4 h-4" />
           <span>Log Out</span>
         </PrimaryButton>
       </motion.div>

@@ -70,10 +70,25 @@ export default function AddressesPage() {
                   <p className="text-sm text-gray-600">{address.address}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <button 
+                    onClick={() => router.push(`/profile/addresses/edit?id=${address.id}`)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    aria-label="Edit address"
+                  >
                     <Edit className="w-4 h-4 text-gray-600" />
                   </button>
-                  <button className="p-2 hover:bg-red-50 rounded-lg transition-colors">
+                  <button 
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to delete "${address.label}"?`)) {
+                        // TODO: Delete address from backend
+                        console.log('Delete address:', address.id);
+                        // For now, just show a message
+                        alert('Address deleted (this is a demo)');
+                      }
+                    }}
+                    className="p-2 hover:bg-red-50 rounded-lg transition-colors"
+                    aria-label="Delete address"
+                  >
                     <Trash2 className="w-4 h-4 text-status-error" />
                   </button>
                 </div>
@@ -89,7 +104,10 @@ export default function AddressesPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: savedAddresses.length * 0.1 }}
       >
-        <GlassCard className="p-4 cursor-pointer border-2 border-dashed border-gray-300 hover:border-brand-deep-blue hover:bg-brand-deep-blue/5 transition-all">
+        <GlassCard 
+          className="p-4 cursor-pointer border-2 border-dashed border-gray-300 hover:border-brand-deep-blue hover:bg-brand-deep-blue/5 transition-all"
+          onClick={() => router.push('/profile/addresses/add')}
+        >
           <div className="flex items-center gap-3 text-gray-600">
             <Plus className="w-5 h-5" />
             <span className="font-medium">Add New Address</span>
