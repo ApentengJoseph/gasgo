@@ -2,7 +2,6 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import dynamic from 'next/dynamic';
-import { Suspense } from 'react';
 
 // Dynamically import BottomNavigation with no SSR to prevent hydration issues
 const BottomNavigation = dynamic(
@@ -13,6 +12,12 @@ const BottomNavigation = dynamic(
 // Dynamically import GoogleMapsProvider with no SSR to prevent hydration issues
 const GoogleMapsProvider = dynamic(
   () => import('@/contexts/GoogleMapsContext').then((mod) => ({ default: mod.GoogleMapsProvider })),
+  { ssr: false }
+);
+
+// Dynamically import MobileInstallPrompt with no SSR (needs window object)
+const MobileInstallPrompt = dynamic(
+  () => import('@/components/PWA/MobileInstallPrompt'),
   { ssr: false }
 );
 
@@ -52,7 +57,9 @@ export default function RootLayout({
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="Gaso" />
         <meta name="msapplication-TileColor" content="#0F4C81" />
-        <meta name="msapplication-TileImage" content="/icon-144x144.png" />
+        <meta name="msapplication-TileImage" content="/web-app-manifest-192x192.png" />
+        <meta name="theme-color" content="#0F4C81" />
+        <meta name="format-detection" content="telephone=no" />
         <script src="https://js.paystack.co/v1/inline.js" async></script>
       </head>
       <body className={`${inter.className} h-full bg-gradient-to-b from-gray-50 to-gray-100`}>
@@ -66,6 +73,9 @@ export default function RootLayout({
           
           {/* Bottom Navigation - Client only to avoid hydration issues */}
           <BottomNavigation />
+          
+          {/* Mobile PWA Install Prompt */}
+          <MobileInstallPrompt />
         </GoogleMapsProvider>
       </body>
     </html>
