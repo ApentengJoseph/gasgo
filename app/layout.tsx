@@ -58,6 +58,41 @@ export default function RootLayout({
               padding: 0; 
             }
             /* iOS Splash Screen - Show icon centered while loading */
+            #ios-splash-overlay {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              width: 100vw;
+              height: 100vh;
+              background-color: #F9FAFB;
+              background-image: url('/apple-touch-icon.png');
+              background-repeat: no-repeat;
+              background-position: center center;
+              background-size: 180px 180px;
+              z-index: 99999;
+              opacity: 1;
+              transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+              pointer-events: none;
+              visibility: visible;
+              -webkit-backface-visibility: hidden;
+              backface-visibility: hidden;
+              display: block;
+            }
+            #ios-splash-overlay.hidden {
+              opacity: 0 !important;
+              visibility: hidden !important;
+            }
+            /* Ensure splash shows immediately on iOS standalone mode */
+            @media (display-mode: standalone) {
+              #ios-splash-overlay {
+                display: block !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+              }
+            }
+            /* Fallback using body::before for older iOS */
             body::before {
               content: '';
               position: fixed;
@@ -65,19 +100,24 @@ export default function RootLayout({
               left: 0;
               right: 0;
               bottom: 0;
+              width: 100vw;
+              height: 100vh;
               background-color: #F9FAFB;
               background-image: url('/apple-touch-icon.png');
               background-repeat: no-repeat;
-              background-position: center;
+              background-position: center center;
               background-size: 180px 180px;
-              z-index: 9999;
+              z-index: 99998;
               opacity: 1;
-              transition: opacity 0.5s ease-out;
+              transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
               pointer-events: none;
+              visibility: visible;
+              -webkit-backface-visibility: hidden;
+              backface-visibility: hidden;
             }
             body.loaded::before {
-              opacity: 0;
-              visibility: hidden;
+              opacity: 0 !important;
+              visibility: hidden !important;
             }
           `
         }} />
@@ -107,6 +147,20 @@ export default function RootLayout({
         <link rel="apple-touch-startup-image" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
         {/* iPhone 12/13/14 Pro Max (428x926) */}
         <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 14 Plus (428x926) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 15/15 Pro (393x852) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 15 Plus/15 Pro Max (430x932) - iPhone 15 Pro Max */}
+        <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 16/16 Pro (393x852) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 16 Plus/16 Pro Max (430x932) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 17/17 Pro (393x852) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
+        {/* iPhone 17 Plus/17 Pro Max (430x932) */}
+        <link rel="apple-touch-startup-image" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" href="/apple-touch-icon.png" />
         {/* iPad (768x1024) */}
         <link rel="apple-touch-startup-image" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" href="/apple-touch-icon.png" />
         {/* iPad Pro 10.5" (834x1112) */}
@@ -130,18 +184,42 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              // Remove splash screen overlay when page loads
+              // Create and inject splash screen overlay immediately
               (function() {
+                var splashOverlay = document.createElement('div');
+                splashOverlay.id = 'ios-splash-overlay';
+                document.body.appendChild(splashOverlay);
+                
                 function removeSplash() {
-                  document.body.classList.add('loaded');
+                  var overlay = document.getElementById('ios-splash-overlay');
+                  if (overlay) {
+                    overlay.classList.add('hidden');
+                    setTimeout(function() {
+                      if (overlay && overlay.parentNode) {
+                        overlay.parentNode.removeChild(overlay);
+                      }
+                    }, 700);
+                  }
+                  if (document.body) {
+                    document.body.classList.add('loaded');
+                  }
                 }
+                
+                // Remove splash when DOM is ready
                 if (document.readyState === 'loading') {
                   document.addEventListener('DOMContentLoaded', removeSplash);
                 } else {
-                  removeSplash();
+                  // DOM already loaded, wait a bit for iOS to render
+                  setTimeout(removeSplash, 100);
                 }
-                // Fallback: remove after 2 seconds max
-                setTimeout(removeSplash, 2000);
+                
+                // Also remove on window load (all resources loaded)
+                window.addEventListener('load', function() {
+                  setTimeout(removeSplash, 300);
+                });
+                
+                // Fallback: remove after 2.5 seconds max
+                setTimeout(removeSplash, 2500);
               })();
             `,
           }}

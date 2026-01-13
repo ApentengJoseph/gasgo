@@ -33,6 +33,13 @@
     -moz-osx-font-smoothing: grayscale;
   }
   
+  /* iOS Splash Screen Enhancement */
+  @supports (-webkit-touch-callout: none) {
+    body {
+      background-color: #F9FAFB !important;
+    }
+  }
+  
   /* Professional Focus States */
   :focus-visible {
     @apply outline-2 outline-brand-corporate-blue outline-offset-2;
