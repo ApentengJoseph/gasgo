@@ -124,7 +124,7 @@ class NotificationService {
         });
       } else {
         // Fallback to direct Notification API
-        const notificationOptions: NotificationOptions = {
+        const notificationOptions: any = {
           body: options.body,
           icon: options.icon || '/apple-touch-icon.png',
           badge: options.badge || '/favicon-96x96.png',
@@ -132,9 +132,8 @@ class NotificationService {
           data: options.data || {},
           requireInteraction: options.requireInteraction || false,
           silent: options.silent || false,
+          vibrate: [200, 100, 200],
         };
-        // @ts-ignore - vibrate is supported but not in TypeScript definitions
-        notificationOptions.vibrate = [200, 100, 200];
         new Notification(options.title, notificationOptions);
       }
       console.log('[Notifications] Notification shown:', options.title);
