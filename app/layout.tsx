@@ -49,25 +49,32 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full" style={{ backgroundColor: '#F9FAFB' }}>
       <head>
-        {/* Critical inline style to prevent white flash on iOS and show splash screen */}
+        {/* Critical inline style to prevent black/white flash on iOS and show splash screen immediately */}
         <style dangerouslySetInnerHTML={{
           __html: `
+            * {
+              margin: 0;
+              padding: 0;
+            }
             html { 
               background-color: #F9FAFB !important; 
               margin: 0; 
               padding: 0; 
+              height: 100%;
             }
             body { 
               background-color: #F9FAFB !important; 
               margin: 0; 
               padding: 0; 
               min-height: 100vh;
+              height: 100%;
+              overflow-x: hidden;
             }
             /* Prevent black screen on iOS - ensure background is always visible */
             html, body, #__next, main {
               background-color: #F9FAFB !important;
             }
-            /* iOS Splash Screen - Show icon centered while loading */
+            /* iOS Splash Screen - Show immediately, no delay */
             #ios-splash-overlay {
               position: fixed;
               top: 0;
@@ -83,7 +90,7 @@ export default function RootLayout({
               background-size: 180px 180px;
               z-index: 99999;
               opacity: 1;
-              transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+              transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
               pointer-events: none;
               visibility: visible;
               -webkit-backface-visibility: hidden;
@@ -102,7 +109,7 @@ export default function RootLayout({
                 visibility: visible !important;
               }
             }
-            /* Fallback using body::before for older iOS */
+            /* Fallback using body::before for immediate display */
             body::before {
               content: '';
               position: fixed;
@@ -119,7 +126,7 @@ export default function RootLayout({
               background-size: 180px 180px;
               z-index: 99998;
               opacity: 1;
-              transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+              transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
               pointer-events: none;
               visibility: visible;
               -webkit-backface-visibility: hidden;
@@ -191,6 +198,9 @@ export default function RootLayout({
         <script src="https://js.paystack.co/v1/inline.js" async></script>
       </head>
       <body className={`${inter.className} h-full`} style={{ backgroundColor: '#F9FAFB' }}>
+        {/* iOS Splash Screen Overlay - Injected immediately in HTML */}
+        <div id="ios-splash-overlay"></div>
+        
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -201,34 +211,33 @@ export default function RootLayout({
                   document.documentElement.style.backgroundColor = '#F9FAFB';
                 }
                 
-                // Create and inject splash screen overlay immediately
-                function createSplash() {
+                // Ensure splash overlay exists (it's already in HTML, but double-check)
+                function ensureSplash() {
                   if (!document.getElementById('ios-splash-overlay')) {
                     var splashOverlay = document.createElement('div');
                     splashOverlay.id = 'ios-splash-overlay';
                     if (document.body) {
-                      document.body.appendChild(splashOverlay);
+                      document.body.insertBefore(splashOverlay, document.body.firstChild);
                     } else {
-                      // Body not ready, wait for it
-                      if (document.readyState === 'loading') {
-                        document.addEventListener('DOMContentLoaded', function() {
-                          if (document.body && !document.getElementById('ios-splash-overlay')) {
-                            document.body.appendChild(splashOverlay);
-                          }
-                        });
-                      }
+                      // Insert into head temporarily, move to body later
+                      document.head.appendChild(splashOverlay);
+                      document.addEventListener('DOMContentLoaded', function() {
+                        if (document.body && splashOverlay.parentNode === document.head) {
+                          document.body.insertBefore(splashOverlay, document.body.firstChild);
+                        }
+                      });
                     }
                   }
                 }
                 
-                // Create splash immediately
-                createSplash();
+                // Ensure splash exists immediately
+                ensureSplash();
                 
-                // Also create when body is available
+                // Also ensure when body is available
                 if (document.body) {
-                  createSplash();
+                  ensureSplash();
                 } else {
-                  document.addEventListener('DOMContentLoaded', createSplash);
+                  document.addEventListener('DOMContentLoaded', ensureSplash);
                 }
                 
                 function removeSplash() {
@@ -239,30 +248,50 @@ export default function RootLayout({
                       if (overlay && overlay.parentNode) {
                         overlay.parentNode.removeChild(overlay);
                       }
-                    }, 700);
+                    }, 900);
                   }
                   if (document.body) {
                     document.body.classList.add('loaded');
                   }
                 }
                 
-                // Remove splash when DOM is ready, but wait a bit for iOS to render
-                if (document.readyState === 'loading') {
-                  document.addEventListener('DOMContentLoaded', function() {
-                    setTimeout(removeSplash, 500);
-                  });
-                } else {
-                  // DOM already loaded, wait a bit for iOS to render
-                  setTimeout(removeSplash, 500);
+                // Remove splash after content is loaded, but keep it visible longer
+                // Wait for both DOM and window load, then add extra delay for better UX
+                var removed = false;
+                function tryRemoveSplash() {
+                  if (removed) return;
+                  removed = true;
+                  
+                  // Wait 1.5 seconds after everything is loaded to keep splash visible
+                  setTimeout(removeSplash, 1500);
                 }
                 
-                // Also remove on window load (all resources loaded)
-                window.addEventListener('load', function() {
-                  setTimeout(removeSplash, 500);
-                });
+                // Remove splash when DOM is ready
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', function() {
+                    // Wait for window load, then add delay
+                    if (document.readyState === 'complete') {
+                      tryRemoveSplash();
+                    } else {
+                      window.addEventListener('load', tryRemoveSplash);
+                    }
+                  });
+                } else {
+                  // DOM already loaded
+                  if (document.readyState === 'complete') {
+                    tryRemoveSplash();
+                  } else {
+                    window.addEventListener('load', tryRemoveSplash);
+                  }
+                }
                 
-                // Fallback: remove after 3 seconds max
-                setTimeout(removeSplash, 3000);
+                // Fallback: remove after 4 seconds max (keeps splash visible longer)
+                setTimeout(function() {
+                  if (!removed) {
+                    removed = true;
+                    removeSplash();
+                  }
+                }, 4000);
               })();
             `,
           }}
