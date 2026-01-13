@@ -222,14 +222,14 @@ export default function TrackingPage() {
 
       {/* Order Details */}
       <GlassCard className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-title-md font-bold text-gray-900">Order #{orderId}</h2>
-            <p className="text-gray-500">{orderData.size} Gas Cylinder</p>
+        <div className="flex items-start sm:items-center justify-between mb-6 gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg sm:text-title-md font-bold text-gray-900 truncate">Order #{orderId}</h2>
+            <p className="text-sm sm:text-base text-gray-500">{orderData.size} Gas Cylinder</p>
             {orderData.rating && (
               <div className="flex items-center gap-2 mt-2">
                 <StarRating rating={orderData.rating} readonly size="sm" />
-                <span className="text-sm text-gray-600">Your rating</span>
+                <span className="text-xs sm:text-sm text-gray-600">Your rating</span>
               </div>
             )}
           </div>
@@ -261,9 +261,9 @@ export default function TrackingPage() {
                   <span className="font-semibold">{step.id}</span>
                 )}
               </div>
-              <div className="flex-1 pt-2">
-                <div className="flex items-center justify-between">
-                  <p className={`font-medium ${
+              <div className="flex-1 pt-2 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`font-medium text-sm sm:text-base truncate ${
                     step.completed || step.current
                       ? 'text-gray-900'
                       : 'text-gray-400'
@@ -271,7 +271,7 @@ export default function TrackingPage() {
                     {step.label}
                   </p>
                   {step.time && (
-                    <span className="text-sm text-gray-500">{step.time}</span>
+                    <span className="text-xs sm:text-sm text-gray-500 whitespace-nowrap flex-shrink-0">{step.time}</span>
                   )}
                 </div>
                 {step.current && (
@@ -315,22 +315,44 @@ export default function TrackingPage() {
         </div>
 
         <div className="flex gap-3">
-          <PrimaryButton
-            variant="secondary"
-            className="flex-1 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10"
+          <button
+            className="flex-1 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '2px solid rgba(15, 76, 129, 0.3)',
+              color: '#0F4C81',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(15, 76, 129, 0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+            }}
             onClick={() => window.location.href = 'tel:+233XXXXXXXXX'}
           >
-            <Phone className="w-5 h-5" />
-            Call
-          </PrimaryButton>
-          <PrimaryButton
-            variant="secondary"
-            className="flex-1 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10"
+            <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="whitespace-nowrap">Call</span>
+          </button>
+          <button
+            className="flex-1 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: '2px solid rgba(15, 76, 129, 0.3)',
+              color: '#0F4C81',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(15, 76, 129, 0.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#FFFFFF';
+            }}
             onClick={() => window.location.href = 'sms:+233XXXXXXXXX'}
           >
-            <MessageSquare className="w-5 h-5" />
-            Message
-          </PrimaryButton>
+            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="whitespace-nowrap">Message</span>
+          </button>
         </div>
       </GlassCard>
 

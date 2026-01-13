@@ -46,13 +46,14 @@ export default function StatusBadge({ status }: { status: keyof typeof statusCon
   return (
     <div className={`
       ${config.color}
-      inline-flex items-center gap-2
-      px-3 py-1.5 rounded-full
-      text-sm font-semibold
+      inline-flex items-center gap-1.5 sm:gap-2
+      px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full
+      text-xs sm:text-sm font-semibold
       border-2
+      whitespace-nowrap
     `}>
-      <Icon className="w-4 h-4" />
-      <span className="capitalize">{status.replace('_', ' ')}</span>
+      <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+      <span className="capitalize truncate">{status.replace('_', ' ')}</span>
     </div>
   );
 }
