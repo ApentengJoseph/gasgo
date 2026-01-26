@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 
 interface PrimaryButtonProps {
   children: ReactNode;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
   loading?: boolean;
   fullWidth?: boolean;
   size?: 'sm' | 'md' | 'lg';

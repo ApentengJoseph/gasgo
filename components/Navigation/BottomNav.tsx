@@ -1,12 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Home, MapPin, Clock, User, Bell, ShoppingCart } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Home, MapPin, Clock, User, Bell } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { usePathname, useRouter } from 'next/navigation';
 import { useGuestOrder } from '@/lib/store/guestOrder';
+import dynamic from 'next/dynamic';
 
-const navItems = [
+// Dynamically import role-specific navigations
+const RiderNavigation = dynamic(() => import('./RiderNav'), { ssr: false });
+const AdminNavigation = dynamic(() => import('./AdminNav'), { ssr: false });
+
+const customerNavItems = [
   { id: 'home', label: 'Home', icon: Home, path: '/' },
   { id: 'map', label: 'Map', icon: MapPin, path: '/stations' },
   { id: 'orders', label: 'Orders', icon: Clock, path: '/orders' },
@@ -20,6 +25,19 @@ export default function BottomNavigation() {
   const guestOrder = useGuestOrder();
   const [hasOrderInProgress, setHasOrderInProgress] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // Determine which navigation to show based on route
+  const getNavigationType = () => {
+    if (pathname.startsWith('/rider')) {
+      return 'rider';
+    }
+    if (pathname.startsWith('/admin')) {
+      return 'admin';
+    }
+    return 'customer';
+  };
+
+  const navigationType = getNavigationType();
 
   // Check guest order after component mounts (client-side only)
   useEffect(() => {
@@ -39,13 +57,12 @@ export default function BottomNavigation() {
     return () => clearTimeout(timer);
   }, [guestOrder]);
 
-  // Determine active tab based on pathname
-  // Handle /order, /orders, /checkout as orders-related routes
+  // Determine active tab based on pathname (for customer navigation only)
   const getActiveTab = () => {
     if (pathname === '/order' || pathname === '/orders' || pathname === '/checkout' || pathname.startsWith('/orders/')) {
       return 'orders';
     }
-    const matchedItem = navItems.find(item => item.path === pathname);
+    const matchedItem = customerNavItems.find(item => item.path === pathname);
     return matchedItem?.id || 'home';
   };
   
@@ -60,6 +77,16 @@ export default function BottomNavigation() {
     }
   };
 
+  // Render role-specific navigation
+  if (navigationType === 'rider') {
+    return <RiderNavigation />;
+  }
+
+  if (navigationType === 'admin') {
+    return <AdminNavigation />;
+  }
+
+  // Default customer navigation
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 pb-safe">
       {/* Subtle top shadow */}
@@ -67,7 +94,7 @@ export default function BottomNavigation() {
       
       <div className="glass-dark mx-4 mb-4 rounded-2xl border border-white/10">
         <div className="flex justify-around items-center h-16 px-2">
-          {navItems.map((item) => (
+          {customerNavItems.map((item) => (
             <button
               key={item.id}
               onClick={() => handleNavigation(item.path)}
