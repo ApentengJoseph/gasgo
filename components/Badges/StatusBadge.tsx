@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, Clock, XCircle, Truck, Flame, Home, RefreshCw, UserCheck } from 'lucide-react';
+import { CheckCircle, Clock, XCircle, Truck, Flame, Home, RefreshCw, UserCheck, MapPin } from 'lucide-react';
 
 const statusConfig = {
   pending: { 
@@ -26,6 +26,10 @@ const statusConfig = {
   on_the_way: { 
     color: 'bg-brand-deep-blue/10 text-brand-deep-blue border-brand-deep-blue/20', 
     icon: Truck 
+  },
+  arriving_soon: { 
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200', 
+    icon: MapPin 
   },
   delivered: { 
     color: 'bg-brand-safety-green/10 text-brand-safety-green border-brand-safety-green/20', 

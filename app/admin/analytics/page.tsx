@@ -87,7 +87,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 mb-2">Today</p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.today.toLocaleString()}</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">GH₵{analytics.revenue.today.toFixed(2)}</p>
           </GlassCard>
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -96,7 +96,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 mb-2">This Week</p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.week.toLocaleString()}</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">GH₵{analytics.revenue.week.toFixed(2)}</p>
           </GlassCard>
           <GlassCard className="p-4">
             <div className="flex items-center justify-between mb-3">
@@ -105,7 +105,7 @@ export default function AdminAnalyticsPage() {
               </div>
             </div>
             <p className="text-xs text-gray-500 mb-2">This Month</p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.month.toLocaleString()}</p>
+            <p className="text-base sm:text-lg font-bold text-gray-900">GH₵{analytics.revenue.month.toFixed(2)}</p>
           </GlassCard>
         </div>
       </motion.div>

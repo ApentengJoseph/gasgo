@@ -122,9 +122,14 @@ export default function RiderOrderDetailPage() {
 
   const action = getStatusAction(order.status);
 
+  // Helper function to check if status requires going to station
+  const isStationStatus = (status: RiderOrderStatus): status is 'assigned' | 'at_station' => {
+    return status === 'assigned' || status === 'at_station';
+  };
+
   // Determine which location to show based on status
   const getCurrentDestination = () => {
-    if (order.status === 'assigned' || order.status === 'at_station') {
+    if (isStationStatus(order.status)) {
       return {
         lat: order.stationLat,
         lng: order.stationLng,
@@ -239,7 +244,7 @@ export default function RiderOrderDetailPage() {
                 </div>
                 <div>
                   <h2 className="text-title-sm font-bold text-gray-900">
-                    {order.status === 'assigned' || order.status === 'at_station' 
+                    {isStationStatus(order.status) 
                       ? 'Route to Station' 
                       : 'Route to Customer'}
                   </h2>
@@ -317,11 +322,11 @@ export default function RiderOrderDetailPage() {
               <button
                 onClick={() => {
                   const addressText = `${destination.label}\n${destination.address}`;
-                  copyToClipboard(addressText, order.status === 'assigned' || order.status === 'at_station' ? 'station' : 'customer');
+                  copyToClipboard(addressText, isStationStatus(order.status) ? 'station' : 'customer');
                 }}
                 className="flex-1 px-4 py-3 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
               >
-                {copiedAddress === (order.status === 'assigned' || order.status === 'at_station' ? 'station' : 'customer') ? (
+                {copiedAddress === (isStationStatus(order.status) ? 'station' : 'customer') ? (
                   <>
                     <Check className="w-4 h-4" />
                     <span className="hidden xs:inline">Copied!</span>
