@@ -67,34 +67,47 @@ export default function AdminAnalyticsPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.1 }}
       >
-        <GlassCard className="p-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-title-md font-bold text-gray-900 mb-1">Revenue Overview</h2>
-              <p className="text-sm text-gray-500">Total revenue across all periods</p>
-            </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-safety-green/10 rounded-lg">
-              <TrendingUp className="w-4 h-4 text-brand-safety-green" />
-              <span className="text-sm font-semibold text-brand-safety-green">
-                +{analytics.revenue.change}%
-              </span>
-            </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <h2 className="text-title-md font-bold text-gray-900 mb-1">Revenue Overview</h2>
+            <p className="text-sm text-gray-500">Total revenue across all periods</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="p-4 bg-gradient-to-br from-brand-deep-blue/5 to-transparent rounded-xl border border-brand-deep-blue/10">
-              <p className="text-xs text-gray-500 mb-2">Today</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">GH₵{analytics.revenue.today.toLocaleString()}</p>
-            </div>
-            <div className="p-4 bg-gradient-to-br from-brand-energy-orange/5 to-transparent rounded-xl border border-brand-energy-orange/10">
-              <p className="text-xs text-gray-500 mb-2">This Week</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">GH₵{analytics.revenue.week.toLocaleString()}</p>
-            </div>
-            <div className="p-4 bg-gradient-to-br from-brand-safety-green/5 to-transparent rounded-xl border border-brand-safety-green/10">
-              <p className="text-xs text-gray-500 mb-2">This Month</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 break-words">GH₵{analytics.revenue.month.toLocaleString()}</p>
-            </div>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-brand-safety-green/10 rounded-lg">
+            <TrendingUp className="w-4 h-4 text-brand-safety-green" />
+            <span className="text-sm font-semibold text-brand-safety-green">
+              +{analytics.revenue.change}%
+            </span>
           </div>
-        </GlassCard>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-brand-deep-blue/10 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-brand-deep-blue" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">Today</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.today.toLocaleString()}</p>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-brand-energy-orange/10 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-brand-energy-orange" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">This Week</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.week.toLocaleString()}</p>
+          </GlassCard>
+          <GlassCard className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-10 h-10 bg-brand-safety-green/10 rounded-xl flex items-center justify-center">
+                <DollarSign className="w-5 h-5 text-brand-safety-green" />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mb-2">This Month</p>
+            <p className="text-xl sm:text-2xl font-bold text-gray-900">GH₵{analytics.revenue.month.toLocaleString()}</p>
+          </GlassCard>
+        </div>
       </motion.div>
 
       {/* Key Metrics */}

@@ -9,10 +9,12 @@ import MapView from '@/components/Map/MapView';
 import { ArrowLeft, MapPin, Phone, Clock, Flame, User, DollarSign, Navigation, Copy, Check, ExternalLink, Route, Map } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+type RiderOrderStatus = 'assigned' | 'at_station' | 'collected' | 'on_the_way' | 'arriving_soon';
+
 // Mock order data - replace with API call
 const mockOrder = {
   id: 'GAS12345',
-  status: 'at_station' as const,
+  status: 'at_station' as RiderOrderStatus,
   size: '12kg',
   customerName: 'Kwame Mensah',
   customerPhone: '+233 XX XXX XXXX',
