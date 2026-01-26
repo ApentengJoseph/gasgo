@@ -225,17 +225,15 @@ export default function RiderDashboard() {
                     </div>
 
                     <div className="flex gap-2 mt-4">
-                      <PrimaryButton 
-                        size="sm" 
-                        variant="secondary" 
-                        className="flex-1"
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/rider/orders/${order.id}`);
                         }}
+                        className="flex-1 px-4 py-3 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                       >
                         View Details
-                      </PrimaryButton>
+                      </button>
                       <PrimaryButton 
                         size="sm" 
                         variant={action.variant}
@@ -297,14 +295,13 @@ export default function RiderDashboard() {
           </PrimaryButton>
         </GlassCard>
 
-        <PrimaryButton 
-          fullWidth 
-          variant="secondary"
+        <button
           onClick={() => router.push('/rider/performance')}
+          className="w-full px-6 py-3 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
         >
           <TrendingUp className="w-5 h-5" />
           Performance Metrics
-        </PrimaryButton>
+        </button>
       </motion.div>
     </div>
   );

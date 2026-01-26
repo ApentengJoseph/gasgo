@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import GlassCard from '@/components/Cards/GlassCard';
+import PrimaryButton from '@/components/Buttons/PrimaryButton';
 import { ArrowLeft, DollarSign, TrendingUp, Calendar, Download, Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -118,8 +119,13 @@ export default function RiderEarningsPage() {
             ))}
           </div>
         </GlassCard>
-        <button className="p-3 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-          <Download className="w-5 h-5 text-gray-600" />
+        <button
+          onClick={() => {
+            // Handle download
+          }}
+          className="px-4 py-3 bg-white border-2 border-brand-deep-blue/30 text-brand-deep-blue hover:bg-brand-deep-blue/5 active:bg-brand-deep-blue/10 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+        >
+          <Download className="w-5 h-5" />
         </button>
       </motion.div>
 
