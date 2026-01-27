@@ -6,10 +6,10 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const riderNavItems = [
   { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/rider' },
-  { id: 'orders', label: 'Orders', icon: Package, path: '/rider' }, // Orders shown on dashboard
+  { id: 'orders', label: 'Orders', icon: Package, path: '/rider/orders' },
   { id: 'earnings', label: 'Earnings', icon: DollarSign, path: '/rider/earnings' },
   { id: 'performance', label: 'Stats', icon: TrendingUp, path: '/rider/performance' },
-  { id: 'profile', label: 'Profile', icon: User, path: '/profile' },
+  { id: 'profile', label: 'Profile', icon: User, path: '/rider/profile' },
 ];
 
 export default function RiderNavigation() {
@@ -30,7 +30,7 @@ export default function RiderNavigation() {
     if (pathname.startsWith('/rider/performance')) {
       return 'performance';
     }
-    if (pathname.startsWith('/profile')) {
+    if (pathname.startsWith('/rider/profile')) {
       return 'profile';
     }
     const matchedItem = riderNavItems.find(item => item.path === pathname);
