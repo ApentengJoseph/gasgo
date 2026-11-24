@@ -53,7 +53,7 @@ export function OrderSteps({ current }: { current: 0 | 1 | 2 }) {
 export function StickyAction({ children }: { children: React.ReactNode }) {
   return (
     <div className="fixed inset-x-0 bottom-[84px] md:bottom-0 z-40 pointer-events-none" style={{ marginBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="max-w-md md:max-w-3xl mx-auto px-4 md:px-6 pb-3 md:pb-6 pointer-events-auto">
+      <div className="max-w-md md:max-w-3xl mx-auto px-4 md:px-6 pb-3 md:pb-6 pointer-events-auto animate-slide-up">
         {children}
       </div>
     </div>

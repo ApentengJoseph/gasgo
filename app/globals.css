@@ -374,3 +374,25 @@
     background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none;
   }
 }
+
+/* ── Motion: page entrance, scroll reveal, hero sequence, marquee ── */
+/* Opacity only: an animated transform here would make this wrapper the containing block
+   for position:fixed children (sticky Pay bar, payment sheet, floating CTA). */
+@keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
+.page-in { animation: page-in 0.28s ease-out backwards; }
+
+.reveal { transition: opacity 0.7s ease, transform 0.7s cubic-bezier(.22,.61,.36,1); }
+.reveal[data-hidden="true"] { opacity: 0; transform: translateY(22px); }
+
+@keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise 0.7s cubic-bezier(.22,.61,.36,1) both; }
+
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee-track { animation: marquee 38s linear infinite; }
+.marquee:hover .marquee-track { animation-play-state: paused; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-in, .rise { animation: none; }
+  .reveal[data-hidden="true"] { opacity: 1; transform: none; }
+  .marquee-track { animation: none; }
+}

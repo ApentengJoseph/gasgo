@@ -8,11 +8,8 @@ import { AuthProvider } from '@/lib/contexts/AuthContext';
 import AppShell from '@/components/Layout/AppShell';
 
 const BottomNavigation = dynamic(() => import('@/components/Navigation/BottomNav'), { ssr: false });
-const GoogleMapsProvider = dynamic(
-  () => import('@/contexts/GoogleMapsContext').then((mod) => ({ default: mod.GoogleMapsProvider })),
-  { ssr: false }
-);
 const MobileInstallPrompt = dynamic(() => import('@/components/PWA/MobileInstallPrompt'), { ssr: false });
+const UpdatePrompt = dynamic(() => import('@/components/PWA/UpdatePrompt'), { ssr: false });
 
 export const metadata: Metadata = {
   title: 'GasRefill — Cooking gas refill delivery in Koforidua',
@@ -59,10 +56,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         `}</Script>
 
         <AuthProvider>
-          <GoogleMapsProvider>
             <AppShell>{children}</AppShell>
             <BottomNavigation />
             <MobileInstallPrompt />
+            <UpdatePrompt />
             <Toaster
               position="top-center"
               toastOptions={{
@@ -81,7 +78,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 error: { iconTheme: { primary: '#DC2626', secondary: '#fff' } },
               }}
             />
-          </GoogleMapsProvider>
         </AuthProvider>
       </body>
     </html>

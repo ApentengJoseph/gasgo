@@ -1,40 +1,27 @@
 'use client';
 
-import { createContext, useContext, ReactNode } from 'react';
+import { ReactNode } from 'react';
 import { useLoadScript } from '@react-google-maps/api';
 
-interface GoogleMapsContextType {
-  isLoaded: boolean;
-  loadError: Error | undefined;
+/**
+ * Google Maps loads on demand: the script is only fetched when a component
+ * that shows a map or address search calls useGoogleMaps(). Pages without a
+ * map (like the homepage) never download it. useLoadScript loads the script
+ * once and shares it between components.
+ */
+const libraries: ('places' | 'geometry')[] = ['places', 'geometry'];
+const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY || '';
+
+/** Kept for compatibility; maps no longer need a provider at the top of the app. */
+export function GoogleMapsProvider({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
-const GoogleMapsContext = createContext<GoogleMapsContextType | undefined>(undefined);
-
-const libraries: ('places' | 'geometry' | 'drawing')[] = ['places', 'geometry', 'drawing'];
-
-export function GoogleMapsProvider({ children }: { children: ReactNode }) {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 
-                 process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY || 
-                 '';
-
+export function useGoogleMaps() {
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: apiKey || 'dummy-key',
     libraries,
     ...(apiKey ? {} : { preventGoogleFontsLoading: true }),
   });
-
-  return (
-    <GoogleMapsContext.Provider value={{ isLoaded, loadError }}>
-      {children}
-    </GoogleMapsContext.Provider>
-  );
+  return { isLoaded, loadError };
 }
-
-export function useGoogleMaps() {
-  const context = useContext(GoogleMapsContext);
-  if (context === undefined) {
-    throw new Error('useGoogleMaps must be used within a GoogleMapsProvider');
-  }
-  return context;
-}
-

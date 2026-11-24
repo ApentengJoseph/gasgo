@@ -27,8 +27,10 @@ export async function POST(req: NextRequest) {
   const email = `guest-${randomUUID()}@${GUEST_EMAIL_DOMAIN}`;
   const password = randomBytes(24).toString('base64url');
   const admin = createServiceRoleClient();
-  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true })
+  const create = () => admin.auth.admin.createUser({ email, password, email_confirm: true })
     .catch(e => ({ data: { user: null }, error: e as Error }));
+  let { data, error } = await create();
+  if (error && /fetch failed|ECONNRESET|network/i.test(error.message)) ({ data, error } = await create()); // one retry for dropped connections
   if (error || !data.user) {
     console.error('[auth/guest]', error?.message);
     return NextResponse.json({ error: 'Could not start a guest session.' }, { status: 500 });

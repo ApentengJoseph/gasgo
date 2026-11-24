@@ -138,7 +138,12 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     domains: ['localhost'],
+    // AVIF/WebP are much smaller than JPEG on phones; cache optimised photos for 30 days
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60 * 60 * 24 * 30,
   },
+  compress: true,
+  poweredByHeader: false,
   // Expose Google Maps API key to browser
   env: {
     NEXT_PUBLIC_GOOGLE_MAP_API_KEY: process.env.GOOGLE_MAP_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY || '',
@@ -155,6 +160,11 @@ const nextConfig = {
             value: 'nosniff',
           },
         ],
+      },
+      {
+        // Photos: cache for a week (short enough that swapped photos show up)
+        source: '/images/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=604800, stale-while-revalidate=86400' }],
       },
     ];
   },

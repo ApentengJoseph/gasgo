@@ -121,11 +121,14 @@ export const useGuestOrder = create<GuestOrderStore>()(
 
 /** Loads the saved order from localStorage once; returns true when it's ready to read. */
 export function useOrderHydrated(): boolean {
-  const [hydrated, setHydrated] = useState(() => useGuestOrder.persist.hasHydrated());
+  // On the server there's no localStorage, so the persist API isn't available yet.
+  const [hydrated, setHydrated] = useState(() => useGuestOrder.persist?.hasHydrated?.() ?? false);
   useEffect(() => {
-    if (useGuestOrder.persist.hasHydrated()) { setHydrated(true); return; }
-    const unsub = useGuestOrder.persist.onFinishHydration(() => setHydrated(true));
-    useGuestOrder.persist.rehydrate();
+    const p = useGuestOrder.persist;
+    if (!p) { setHydrated(true); return; }
+    if (p.hasHydrated()) { setHydrated(true); return; }
+    const unsub = p.onFinishHydration(() => setHydrated(true));
+    p.rehydrate();
     return unsub;
   }, []);
   return hydrated;

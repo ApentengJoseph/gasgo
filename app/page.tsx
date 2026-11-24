@@ -7,6 +7,9 @@ import {
 import HeroBooking from '@/components/Home/HeroBooking';
 import { TrackingStatusCard } from '@/components/Home/TrackingPreview';
 import HowItWorks from '@/components/Home/HowItWorks';
+import Reveal from '@/components/UI/Reveal';
+import AreaMarquee from '@/components/Home/AreaMarquee';
+import HomeStickyCta from '@/components/Home/HomeStickyCta';
 import { Logo } from '@/components/Navigation/TopNav';
 import { serviceAreas, priceFor } from '@/lib/data/stations';
 import { getStations } from '@/lib/data/getStations';
@@ -68,17 +71,17 @@ export default async function HomePage() {
 
         <div className="w-full max-w-6xl mx-auto px-5 md:px-8 pt-24 pb-12 md:pb-20 flex flex-col justify-end lg:justify-center">
           <div className="max-w-lg">
-            <span className="inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur px-3.5 py-1.5 text-[0.8125rem] font-semibold">
+            <span className="rise inline-flex items-center gap-2 rounded-full bg-white/15 backdrop-blur px-3.5 py-1.5 text-[0.8125rem] font-semibold">
               <MapPin className="w-3.5 h-3.5 text-[#FFB27A]" /> Gas delivery in Koforidua
             </span>
-            <h1 className="mt-5 text-[2.75rem] leading-[0.95] sm:text-[3.75rem] lg:text-[4.5rem] font-extrabold tracking-[-0.045em]">
+            <h1 style={{ animationDelay: '90ms' }} className="rise mt-5 text-[2.75rem] leading-[0.95] sm:text-[3.75rem] lg:text-[4.5rem] font-extrabold tracking-[-0.045em]">
               Stop carrying gas to the{' '}
               <span className="bg-gradient-to-r from-[#FF7A1A] via-[#FF9A4D] to-[#FFC999] bg-clip-text text-transparent">station.</span>
             </h1>
-            <p className="mt-4 md:mt-6 text-[1.0625rem] md:text-[1.1875rem] leading-snug text-white/80 max-w-md">
+            <p style={{ animationDelay: '180ms' }} className="rise mt-4 md:mt-6 text-[1.0625rem] md:text-[1.1875rem] leading-snug text-white/80 max-w-md">
               Book on your phone. A rider picks up your empty cylinder, refills it at the station you choose and brings it back full.
             </p>
-            <div className="mt-7 flex flex-col sm:flex-row gap-3">
+            <div style={{ animationDelay: '270ms' }} className="rise mt-7 flex flex-col sm:flex-row gap-3">
               <Link href="#book" className="inline-flex items-center justify-center gap-2 h-14 px-7 rounded-full btn-primary text-[1rem]">
                 Get my price <ArrowRight className="w-5 h-5" />
               </Link>
@@ -125,9 +128,12 @@ export default async function HomePage() {
         </ul>
       </section>
 
-      <HowItWorks />
+      <AreaMarquee />
+
+      <Reveal><HowItWorks /></Reveal>
 
       {/* ── Rider + live tracking ── */}
+      <Reveal>
       <section className="px-3 md:px-6">
         <div className="max-w-7xl mx-auto rounded-[32px] overflow-hidden bg-gradient-to-br from-[#FFF4EA] via-[#FFE9D6] to-[#FFD2AE]">
           <div className="grid lg:grid-cols-2 items-stretch">
@@ -158,7 +164,10 @@ export default async function HomePage() {
         </div>
       </section>
 
+      </Reveal>
+
       {/* ── Station prices ── */}
+      <Reveal>
       <section className="max-w-6xl mx-auto px-5 md:px-8 py-16 md:py-24 grid lg:grid-cols-[0.8fr_1.2fr] gap-10 lg:gap-16 items-start">
         <div className="lg:sticky lg:top-28">
           <p className={eyebrow}>Prices</p>
@@ -197,6 +206,8 @@ export default async function HomePage() {
         </div>
       </section>
 
+      </Reveal>
+
       {/* ── Areas ── */}
       <section className="relative isolate overflow-hidden text-white">
         <Image src={streetImg} alt="A residential street in Ghana with a motor tricycle" fill placeholder="blur" loading="eager" sizes="100vw" className="object-cover -z-20" />
@@ -217,6 +228,7 @@ export default async function HomePage() {
       </section>
 
       {/* ── FAQ ── */}
+      <Reveal>
       <section className="max-w-3xl mx-auto px-5 md:px-8 py-16 md:py-24">
         <h2 className={`${h2} text-center`}>Questions?</h2>
         <div className="mt-10 divide-y divide-line border-y border-line">
@@ -234,7 +246,10 @@ export default async function HomePage() {
         </div>
       </section>
 
+      </Reveal>
+
       {/* ── Final CTA ── */}
+      <Reveal>
       <section className="px-3 md:px-6 pb-3 md:pb-6">
         <div className="max-w-7xl mx-auto rounded-[32px] overflow-hidden relative px-6 py-14 md:px-16 md:py-20 text-white bg-gradient-to-br from-[#FF8A3D] via-flame to-[#C64400]">
           <div aria-hidden="true" className="absolute -right-32 -top-32 w-[28rem] h-[28rem] rounded-full bg-white/15 blur-3xl" />
@@ -246,6 +261,8 @@ export default async function HomePage() {
           </div>
         </div>
       </section>
+
+      </Reveal>
 
       {/* ── Footer ── */}
       <footer className="max-w-6xl mx-auto px-5 md:px-8 py-10">
@@ -273,6 +290,7 @@ export default async function HomePage() {
           © {new Date().getFullYear()} GasRefill · Gas delivery in Koforidua · <Link href="/credits" className="hover:text-ink">Credits</Link>
         </p>
       </footer>
+      <HomeStickyCta />
     </div>
   );
 }
