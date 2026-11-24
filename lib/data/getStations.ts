@@ -4,6 +4,7 @@ import { FALLBACK_STATIONS, normalizeStation, type Station, type StationRow } fr
 /** Server-side station list (public data, no user session needed). */
 export async function getStations(): Promise<{ stations: Station[]; live: boolean }> {
   try {
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
