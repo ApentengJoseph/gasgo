@@ -1,16 +1,9 @@
-/**
- * GET /api/stations
- * Get all active stations with inventory
- */
+import { NextResponse } from 'next/server';
+import { getStations } from '@/lib/data/getStations';
 
-import { NextRequest, NextResponse } from 'next/server';
-// // import { prisma } from '@/lib/db/prisma';
-
-export async function GET(request: NextRequest) {
-  // TODO: Implement when backend is ready
-  return NextResponse.json(
-    { error: 'Not implemented yet' },
-    { status: 501 }
-  );
+export async function GET() {
+  const { stations, live } = await getStations();
+  return NextResponse.json({ stations, live }, {
+    headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' },
+  });
 }
-

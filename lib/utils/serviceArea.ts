@@ -1,6 +1,6 @@
 /**
  * Service area bounds and validation
- * Defines the operational area for Gaso delivery service
+ * Defines the operational area for GasRefill delivery service
  */
 
 export interface ServiceAreaBounds {

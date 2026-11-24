@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PrimaryButton from '@/components/Buttons/PrimaryButton';
-import { formatAmountForPaystack } from '@/lib/payments/paystack';
 
 interface PaystackButtonProps {
   amount: number;
@@ -24,55 +23,86 @@ export default function PaystackButton({
   onError,
 }: PaystackButtonProps) {
   const [loading, setLoading] = useState(false);
+  const [scriptReady, setScriptReady] = useState(false);
 
-  const handlePayment = async () => {
+  // Wait for Paystack inline script to finish loading
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const check = () => {
+      if ((window as any).PaystackPop) {
+        setScriptReady(true);
+      } else {
+        setTimeout(check, 300);
+      }
+    };
+    check();
+  }, []);
+
+  const handlePayment = () => {
+    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY;
+
+    if (!publicKey) {
+      const err = new Error(
+        'Paystack public key is missing. ' +
+        'Add NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY to .env.local and restart the dev server.',
+      );
+      console.error(err.message);
+      if (onError) onError(err);
+      return;
+    }
+
+    if (!scriptReady || !(window as any).PaystackPop) {
+      const err = new Error('Paystack script has not loaded yet. Please wait a moment and try again.');
+      if (onError) onError(err);
+      return;
+    }
+
+    // Use real email if provided, otherwise derive from phone
+    const safeEmail =
+      email && email.includes('@') && email.split('@')[1]?.includes('.')
+        ? email
+        : `${(phone || '').replace(/\D/g, '') || 'user'}@pay.gasgo.app`;
+
+    const reference = `GAS_${Date.now()}_${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+
     setLoading(true);
 
     try {
-      // Check if Paystack is available
-      if (typeof window === 'undefined' || !(window as any).PaystackPop) {
-        throw new Error('Paystack is not loaded. Please check your Paystack configuration.');
-      }
-
-      const PaystackPop = (window as any).PaystackPop.setup({
-        key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
-        email,
-        amount: formatAmountForPaystack(amount),
-        ref: orderId,
+      const handler = (window as any).PaystackPop.setup({
+        key: publicKey,
+        email: safeEmail,
+        amount: Math.round(amount * 100), // pesewas
+        currency: 'GHS',
+        ref: reference,
         metadata: {
           orderId,
+          phone: phone || '',
           custom_fields: [
-            {
-              display_name: 'Order ID',
-              variable_name: 'order_id',
-              value: orderId,
-            },
+            { display_name: 'Order ID', variable_name: 'order_id', value: orderId },
           ],
         },
-        callback: function (response: any) {
-          // Payment successful
-          if (onSuccess) {
-            onSuccess(response.reference);
-          }
+        // Valid Paystack channel values: 'card', 'bank', 'mobile_money', 'ussd', 'bank_transfer'
+        // Network (MTN/Vodafone/AirtelTigo) is chosen inside Paystack's own popup
+        channels: network === 'card' ? ['card'] : ['mobile_money'],
+        callback: (response: any) => {
           setLoading(false);
+          if (onSuccess) onSuccess(response.reference);
         },
-        onClose: function () {
-          // User closed payment modal
+        onClose: () => {
           setLoading(false);
         },
       });
 
-      PaystackPop.openIframe();
-    } catch (error) {
-      console.error('Payment error:', error);
-      if (onError) {
-        onError(error as Error);
-      }
+      handler.openIframe();
+    } catch (err: any) {
+      console.error('[PaystackButton] setup error:', err);
       setLoading(false);
+      if (onError) onError(err);
     }
   };
 
-  const isValid = phone && network && phone.length >= 10;
+  const isValid = phone && phone.replace(/\D/g, '').length >= 9 && network;
 
   return (
     <PrimaryButton
@@ -80,10 +110,11 @@ export default function PaystackButton({
       loading={loading}
       fullWidth
       size="lg"
-      disabled={!isValid || loading}
+      disabled={!isValid || loading || !scriptReady}
     >
-      Pay GH₵{amount.toFixed(2)} with {network || 'Mobile Money'}
+      {!scriptReady
+        ? 'Loading payment…'
+        : `Pay GH₵${amount.toFixed(2)}${network ? ` via ${network}` : ''}`}
     </PrimaryButton>
   );
 }
-

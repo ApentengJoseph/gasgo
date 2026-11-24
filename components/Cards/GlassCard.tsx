@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 
 interface GlassCardProps {
@@ -9,56 +9,38 @@ interface GlassCardProps {
   intensity?: 'light' | 'medium' | 'heavy';
   hoverable?: boolean;
   onClick?: () => void;
+  noPadding?: boolean;
 }
 
-export default function GlassCard({
+const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(({
   children,
   className = '',
   intensity = 'medium',
   hoverable = true,
   onClick,
-}: GlassCardProps) {
-  const intensityMap = {
-    light: 'rgba(255, 255, 255, 0.6)',
-    medium: 'rgba(255, 255, 255, 0.85)',
-    heavy: 'rgba(255, 255, 255, 0.95)',
-  };
+  noPadding = false,
+}, ref) => {
+  const Tag = onClick ? motion.div : motion.div;
 
   return (
-    <motion.div
+    <Tag
+      ref={ref}
       initial={false}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={hoverable ? { y: -2 } : {}}
-      whileTap={onClick ? { scale: 0.98 } : {}}
+      animate={{ opacity: 1 }}
+      whileHover={hoverable && onClick ? { y: -1 } : {}}
+      whileTap={onClick ? { scale: 0.99 } : {}}
       onClick={onClick}
       className={`
-        relative rounded-2xl overflow-hidden
-        ${onClick ? 'cursor-pointer' : ''}
+        card
+        ${onClick ? 'card-interactive' : ''}
         ${className}
       `}
-      style={{
-        background: intensityMap[intensity],
-        backdropFilter: 'blur(12px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-        border: '1px solid rgba(255, 255, 255, 0.3)',
-        boxShadow: `
-          0 4px 30px rgba(0, 0, 0, 0.1),
-          0 0 0 1px rgba(255, 255, 255, 0.1),
-          inset 0 0 0 1px rgba(255, 255, 255, 0.05)
-        `,
-      }}
+      style={onClick ? { cursor: 'pointer' } : undefined}
     >
-      {/* Top highlight */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
-      
-      {/* Content */}
-      <div className="relative z-10">
-        {children}
-      </div>
-      
-      {/* Bottom glow */}
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-    </motion.div>
+      {children}
+    </Tag>
   );
-}
+});
 
+GlassCard.displayName = 'GlassCard';
+export default GlassCard;

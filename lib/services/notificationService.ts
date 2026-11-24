@@ -160,7 +160,7 @@ class NotificationService {
     
     // Send first notification immediately
     this.showNotification({
-      title: 'Gaso Test Notification',
+      title: 'GasRefill Test Notification',
       body: 'Push notifications are working! This is a test notification.',
       tag: 'test-notification',
     });
@@ -169,7 +169,7 @@ class NotificationService {
     this.testIntervalId = setInterval(() => {
       const now = new Date();
       this.showNotification({
-        title: 'Gaso Test Notification',
+        title: 'GasRefill Test Notification',
         body: `Test notification at ${now.toLocaleTimeString()}. Push notifications are working correctly!`,
         tag: 'test-notification',
       });

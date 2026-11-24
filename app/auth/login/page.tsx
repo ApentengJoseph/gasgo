@@ -1,248 +1,89 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import PrimaryButton from '@/components/Buttons/PrimaryButton';
-import GlassCard from '@/components/Cards/GlassCard';
-import { Phone, Mail, ArrowLeft, AlertCircle } from 'lucide-react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Logo } from '@/components/Navigation/TopNav';
 
-export default function LoginPage() {
+/**
+ * Sign in for saved accounts (customers who added an email), riders and admins.
+ * New customers never need this page: they can order straight away as guests.
+ */
+function Login() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') || '/';
-  const emailParam = searchParams.get('email') || '';
-  
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState(emailParam);
-  const [loading, setLoading] = useState(false);
-  const [step, setStep] = useState<'input' | 'otp'>('input');
-  const [otp, setOtp] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const redirect = useSearchParams()?.get('redirect');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [resetSent, setResetSent] = useState(false);
 
-  // Load email from URL param or localStorage
-  useEffect(() => {
-    if (emailParam) {
-      setEmail(emailParam);
-    } else if (typeof window !== 'undefined') {
-      const savedEmail = localStorage.getItem('gaso-guest-email');
-      if (savedEmail) {
-        setEmail(savedEmail);
-      }
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(''); setBusy(true);
+    const supabase = createClient();
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (err || !data.user) {
+      setError(err?.message?.toLowerCase().includes('invalid') ? 'That email and password don’t match.' : (err?.message ?? 'Could not sign in.'));
+      setBusy(false);
+      return;
     }
-  }, [emailParam]);
-
-  const validatePhone = (phoneNumber: string): boolean => {
-    // Basic Ghana phone validation
-    const ghanaPhoneRegex = /^(\+233|0)[0-9]{9}$/;
-    return ghanaPhoneRegex.test(phoneNumber.replace(/\s/g, ''));
+    const { data: prof } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
+    const dest = prof?.role === 'rider' ? '/rider' : prof?.role === 'admin' ? '/admin' : (redirect?.startsWith('/') ? redirect : '/orders');
+    router.replace(dest);
+    router.refresh();
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!phone) {
-      setError('Phone number is required');
-      return;
-    }
-
-    if (!validatePhone(phone)) {
-      setError('Please enter a valid Ghana phone number');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      // TODO: Implement Firebase phone auth
-      // For now, simulate OTP step
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setStep('otp');
-    } catch (err) {
-      setError('Failed to send OTP. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!otp || otp.length !== 6) {
-      setError('Please enter a valid 6-digit OTP');
-      return;
-    }
-
-    setLoading(true);
-    
-    try {
-      // TODO: Verify OTP with Firebase
-      // For now, simulate successful login
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Save auth state to localStorage (simulated)
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('gaso-auth', 'true');
-        localStorage.setItem('gaso-user-phone', phone);
-        if (email) {
-          localStorage.setItem('gaso-user-email', email);
-        }
-      }
-      
-      // Redirect to the intended page (checkout) or home
-      router.push(redirectTo);
-    } catch (err) {
-      setError('Invalid OTP. Please try again.');
-      setLoading(false);
-    }
+  const forgot = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setError('Enter your email first, then tap “Forgot password”.'); return; }
+    setError('');
+    await createClient().auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/auth/login` });
+    setResetSent(true);
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12">
-      <div className="w-full max-w-md space-y-6">
-        <Link href="/" className="inline-flex items-center gap-2 text-gray-600 mb-4">
-          <ArrowLeft className="w-5 h-5" />
-          Back to home
-        </Link>
+    <div className="min-h-[70vh] flex flex-col items-center justify-center py-6">
+      <div className="w-full max-w-sm">
+        <div className="flex justify-center mb-8"><Logo /></div>
+        <div className="card p-6 md:p-7">
+          <h1 className="text-[1.5rem] font-extrabold tracking-tight text-ink">Welcome back</h1>
+          <p className="text-ink-muted text-[0.9375rem] mt-1 mb-6">Sign in with the email you saved on your account.</p>
 
-        <GlassCard className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-display-md font-bold text-gray-900 mb-2">
-              Welcome to Gaso
-            </h1>
-            <p className="text-gray-600">
-              {step === 'input' 
-                ? 'Sign in to continue' 
-                : 'Enter the OTP sent to your phone'}
-            </p>
-          </div>
-
-          {/* Error Message */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="p-4 bg-status-error/10 border border-status-error/20 rounded-xl"
-              >
-                <div className="flex items-center gap-2 text-status-error">
-                  <AlertCircle className="w-5 h-5" />
-                  <p className="text-sm font-medium">{error}</p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {step === 'input' ? (
-            <motion.form
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onSubmit={handleLogin}
-              className="space-y-6"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+233 XX XXX XXXX"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent"
-                    required
-                  />
-                </div>
+          <form onSubmit={signIn} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="field-label">Email</label>
+              <input id="email" type="email" inputMode="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="you@email.com" required />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="field-label">Password</label>
+                <button type="button" onClick={forgot} className="text-[0.8125rem] font-semibold text-flame-deep mb-2">Forgot password?</button>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email (Optional)
-                </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent"
-                  />
-                </div>
+              <div className="relative">
+                <input id="password" type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} className="input-field pr-12" required />
+                <button type="button" onClick={() => setShow(s => !s)} aria-label={show ? 'Hide password' : 'Show password'} className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-ink-faint">
+                  {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
-
-              <PrimaryButton
-                type="submit"
-                fullWidth
-                loading={loading}
-                size="lg"
-              >
-                Continue
-              </PrimaryButton>
-            </motion.form>
-          ) : (
-            <motion.form
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              onSubmit={handleVerifyOTP}
-              className="space-y-6"
-            >
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter OTP
-                </label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="123456"
-                  maxLength={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent text-center text-2xl tracking-widest"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-2 text-center">
-                  OTP sent to {phone}
-                </p>
-              </div>
-
-              <PrimaryButton
-                type="submit"
-                fullWidth
-                loading={loading}
-                size="lg"
-              >
-                Verify OTP
-              </PrimaryButton>
-
-              <button
-                type="button"
-                onClick={() => setStep('input')}
-                className="w-full text-center text-sm text-brand-deep-blue"
-              >
-                Resend OTP
-              </button>
-            </motion.form>
-          )}
-
-          <div className="mt-6 text-center text-sm text-gray-500">
-            By continuing, you agree to Gaso&apos;s{' '}
-            <Link href="/terms" className="text-brand-deep-blue">
-              Terms of Service
-            </Link>
-            {' '}and{' '}
-            <Link href="/privacy" className="text-brand-deep-blue">
-              Privacy Policy
-            </Link>
-          </div>
-        </GlassCard>
+            </div>
+            {error && <p role="alert" className="rounded-2xl bg-[#FDECEC] px-4 py-3 text-[0.875rem] text-[#B91C1C]">{error}</p>}
+            {resetSent && <p className="rounded-2xl bg-[#E8F6EC] px-4 py-3 text-[0.875rem] text-[#166534]">Check your email for a link to reset your password.</p>}
+            <button type="submit" disabled={busy} className="w-full h-14 rounded-full btn-primary disabled:opacity-60">
+              {busy ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sign in'}
+            </button>
+          </form>
+        </div>
+        <p className="mt-6 text-center text-[0.9375rem] text-ink-muted">
+          New here? <Link href="/stations" className="font-semibold text-ink underline underline-offset-2">Just order. No account needed.</Link>
+        </p>
       </div>
     </div>
   );
 }
 
+export default function LoginPage() {
+  return <Suspense><Login /></Suspense>;
+}

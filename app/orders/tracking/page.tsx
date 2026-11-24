@@ -1,422 +1,317 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import GlassCard from '@/components/Cards/GlassCard';
-import StatusBadge from '@/components/Badges/StatusBadge';
-import RatingModal from '@/components/Rating/RatingModal';
-import StarRating from '@/components/Rating/StarRating';
-import { Truck, Phone, MessageSquare, Shield, CheckCircle, Star, Loader2, MapPin } from 'lucide-react';
-import PrimaryButton from '@/components/Buttons/PrimaryButton';
+import Link from 'next/link';
+import {
+  Phone, MessageCircle, Check, MapPin, Store, AlertTriangle, Loader2, Star, Banknote, Smartphone,
+  ChevronDown, FlaskConical, Bike,
+} from 'lucide-react';
 import LiveTrackingMap from '@/components/Map/LiveTrackingMap';
-import { motion } from 'framer-motion';
-import { calculateDeliveryETA, formatDuration, DeliveryRoute } from '@/lib/utils/delivery';
+import RatingModal from '@/components/Rating/RatingModal';
+import InfoTip from '@/components/UI/InfoTip';
+import PaymentRecovery from '@/components/Payment/PaymentRecovery';
+import { createClient } from '@/lib/supabase/client';
+import type { Order } from '@/lib/types/database';
 
-const orderSteps = [
-  { id: 1, label: 'Order Placed', time: '10:30 AM', completed: true },
-  { id: 2, label: 'Payment Confirmed', time: '10:31 AM', completed: true },
-  { id: 3, label: 'Rider Assigned', time: '10:35 AM', completed: true },
-  { id: 4, label: 'At Station', time: '10:45 AM', completed: true },
-  { id: 5, label: 'On the way', time: '11:00 AM', completed: true, current: true },
-  { id: 6, label: 'Arriving Soon', time: '11:15 AM', completed: false },
-  { id: 7, label: 'Delivered', time: '', completed: false },
-  { id: 8, label: 'Confirmed', time: '', completed: false },
-];
+type TrackedOrder = Order & { rider_name?: string | null; rider_phone?: string | null };
 
-export default function TrackingPage() {
-  const searchParams = useSearchParams();
-  const orderId = searchParams.get('orderId') || 'GAS12345';
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [deliveryRoute, setDeliveryRoute] = useState<DeliveryRoute | null>(null);
-  const [calculatingETA, setCalculatingETA] = useState(true);
-  const [riderPosition, setRiderPosition] = useState({ lat: 6.0850, lng: -0.2520 });
-  const riderPositionRef = useRef(riderPosition);
-  
-  // Keep ref in sync with state
+const DEMO_RIDER = process.env.NEXT_PUBLIC_DEMO_AUTO_RIDER === 'true';
+
+// Five steps the customer cares about; several DB statuses map onto one step.
+const STEPS = ['Confirmed', 'Picked up', 'Refilling', 'Coming back', 'Delivered'];
+const STEP_OF: Record<string, number> = {
+  pending: -1, confirmed: 0, assigned: 0, collected: 1, at_station: 2, on_the_way: 3, arriving: 3, delivered: 4,
+};
+const STEP_TIME: (keyof Order)[] = ['confirmed_at', 'collected_at', 'at_station_at', 'on_the_way_at', 'delivered_at'];
+
+const HEADLINE: Record<string, { title: string; sub: string }> = {
+  pending:    { title: 'Waiting for payment',              sub: 'Approve the MoMo prompt on your phone to confirm the order.' },
+  confirmed:  { title: 'Finding you a rider',              sub: 'Your order is confirmed. A nearby rider will accept it shortly.' },
+  assigned:   { title: 'Rider is coming for your cylinder', sub: 'Have your empty cylinder ready at the door.' },
+  collected:  { title: 'Cylinder picked up',               sub: 'Your rider is taking it to the station for a refill.' },
+  at_station: { title: 'Refilling at the station',         sub: 'Your cylinder is being filled now.' },
+  on_the_way: { title: 'Bringing it back',                 sub: 'Your full cylinder is on the way. Keep your phone close.' },
+  arriving:   { title: 'Almost at your door',              sub: 'Your rider is just around the corner.' },
+  delivered:  { title: 'Delivered. Enjoy your cooking!',   sub: 'Thanks for using GasRefill.' },
+  cancelled:  { title: 'Order cancelled',                  sub: 'This order was cancelled.' },
+};
+
+const time = (ts?: unknown) =>
+  typeof ts === 'string' ? new Date(ts).toLocaleTimeString('en-GH', { hour: 'numeric', minute: '2-digit' }) : '';
+const money = (n: number) => `GH₵${Number(n).toFixed(2)}`;
+
+function Tracking() {
+  const orderId = useSearchParams()?.get('orderId');
+  const supabase = useRef(createClient()).current;
+  const [order, setOrder] = useState<TrackedOrder | null>(null);
+  const [station, setStation] = useState<{ lat: number; lng: number; name: string } | null>(null);
+  const [state, setState] = useState<'loading' | 'ready' | 'missing'>('loading');
+  const [eta, setEta] = useState<number | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [rating, setRating] = useState(false);
+  const [rated, setRated] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!orderId) { setState('missing'); return; }
+    const { data } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+    if (!data) { setState('missing'); return; }
+    setOrder(data as TrackedOrder);
+    setState('ready');
+    if (data.station_id) {
+      const { data: s } = await supabase.from('stations').select('lat, lng, name').eq('id', data.station_id).maybeSingle();
+      if (s) setStation(s);
+    }
+  }, [orderId, supabase]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Live updates (Supabase Realtime) + a slow poll as a safety net
   useEffect(() => {
-    riderPositionRef.current = riderPosition;
-  }, [riderPosition]);
-  
-  // Mock order data - in production, fetch from API
-  const orderData = {
-    id: orderId,
-    status: orderId === 'GAS12345' ? 'delivered' : 'on_the_way',
-    stationName: 'GasPro Station',
-    stationId: '1',
-    rating: orderId === 'GAS12345' ? 5 : null,
-    size: '12kg',
-  };
+    if (!orderId) return;
+    const channel = supabase
+      .channel(`order-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
+        (payload) => setOrder(prev => ({ ...(prev ?? {}), ...(payload.new as TrackedOrder) })))
+      .subscribe();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 15000);
+    return () => { supabase.removeChannel(channel); clearInterval(t); };
+  }, [orderId, supabase, load]);
 
-  const handleSubmitRating = async (rating: number, comment: string) => {
-    // In production, save to backend
-    console.log('Rating submitted:', { rating, comment, orderId, stationId: orderData.stationId });
-    // Show success message
-    alert('Thank you for your feedback!');
-  };
-
-  // Koforidua coordinates for tracking
-  const stationPosition = { lat: 6.0920, lng: -0.2580 }; // GasPro Station
-  const destinationPosition = { lat: 6.0833, lng: -0.2500 }; // Customer location
-
-  // Calculate real-time ETA using Google Maps API
-  // Only calculate on mount and periodically, not on every position change
+  // Test mode: the demo rider accepts and drives the route, one step every few seconds
+  const status = order?.status;
   useEffect(() => {
-    let isMounted = true;
-    let intervalId: NodeJS.Timeout | null = null;
-
-    const calculateETA = async () => {
-      if (!isMounted) return;
-      
-      setCalculatingETA(true);
-      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 
-                     process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY || 
-                     '';
-
-      try {
-        // Wait a bit for Google Maps to load if needed
-        let attempts = 0;
-        const maxAttempts = 10;
-        
-        const waitForGoogleMaps = (): Promise<boolean> => {
-          return new Promise((resolve) => {
-            const check = () => {
-              if (!isMounted) {
-                resolve(false);
-                return;
-              }
-              if (typeof window !== 'undefined' && (window as any).google) {
-                resolve(true);
-              } else if (attempts < maxAttempts) {
-                attempts++;
-                setTimeout(check, 500);
-              } else {
-                resolve(false);
-              }
-            };
-            check();
-          });
-        };
-
-        const hasGoogleMaps = await waitForGoogleMaps();
-        // Get current rider position from ref (always up-to-date)
-        const currentRiderPos = riderPositionRef.current;
-        const route = await calculateDeliveryETA(
-          currentRiderPos,
-          stationPosition,
-          destinationPosition,
-          hasGoogleMaps && apiKey ? apiKey : ''
-        );
-        
-        if (isMounted) {
-          setDeliveryRoute(route);
-        }
-      } catch (error) {
-        console.error('Error calculating ETA:', error);
-        if (isMounted) {
-          // Use fallback
-          const currentRiderPos = riderPositionRef.current;
-          const route = await calculateDeliveryETA(
-            currentRiderPos,
-            stationPosition,
-            destinationPosition,
-            ''
-          );
-          setDeliveryRoute(route);
-        }
-      } finally {
-        if (isMounted) {
-          setCalculatingETA(false);
-        }
-      }
+    if (!DEMO_RIDER || !orderId || !status || ['pending', 'delivered', 'cancelled'].includes(status)) return;
+    const tick = async () => {
+      if (document.visibilityState !== 'visible') return;
+      const res = await fetch('/api/demo/advance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId }),
+      }).catch(() => null);
+      if (res?.ok) load();
     };
+    const first = setTimeout(tick, status === 'confirmed' ? 2500 : 600);
+    const t = setInterval(tick, 3500);
+    return () => { clearTimeout(first); clearInterval(t); };
+  }, [orderId, status, load]);
 
-    // Initial calculation
-    calculateETA();
+  // Ask for a rating once, when delivered
+  const asked = useRef(false);
+  useEffect(() => {
+    if (status === 'delivered' && !asked.current) { asked.current = true; setTimeout(() => setRating(true), 1200); }
+  }, [status]);
 
-    // Recalculate ETA every 30 seconds (not on every position change to avoid infinite loop)
-    intervalId = setInterval(() => {
-      calculateETA();
-    }, 30000);
+  if (state === 'loading') {
+    return <div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="w-7 h-7 text-flame animate-spin" /></div>;
+  }
+  if (state === 'missing' || !order) {
+    return (
+      <div className="card p-8 text-center max-w-md mx-auto mt-6">
+        <AlertTriangle className="w-10 h-10 mx-auto text-[#B45309]" />
+        <h1 className="mt-3 text-[1.25rem] font-bold text-ink">We couldn’t find that order</h1>
+        <p className="mt-1 text-ink-muted">It may belong to another phone, or the link is incomplete.</p>
+        <Link href="/orders" className="mt-5 inline-flex h-12 px-6 items-center rounded-full btn-dark">See my orders</Link>
+      </div>
+    );
+  }
 
-    return () => {
-      isMounted = false;
-      if (intervalId) {
-        clearInterval(intervalId);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount, then use interval for updates (riderPosition is captured in closure)
+  const step = STEP_OF[order.status] ?? -1;
+  const head = HEADLINE[order.status] ?? HEADLINE.confirmed;
+  const cancelled = order.status === 'cancelled';
+  const delivered = order.status === 'delivered';
+  const riderActive = ['assigned', 'collected', 'at_station', 'on_the_way', 'arriving'].includes(order.status);
+  const hasRiderPos = order.rider_lat != null && order.rider_lng != null;
+  const stationPos = station ?? { lat: order.delivery_lat, lng: order.delivery_lng, name: order.station_name };
+  const waNumber = order.rider_phone?.replace(/\D/g, '').replace(/^0/, '233');
+  const etaShown = eta != null && ['on_the_way', 'arriving', 'assigned'].includes(order.status);
+  const items: { kg: number; qty: number; unit: number }[] = Array.isArray((order as any).items) ? (order as any).items : [];
+  const cylinders = Number(order.quantity) || 1;
+
+  const handleRating = async (stars: number, comment: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('ratings').insert({
+        user_id: user.id, station_id: order.station_id, order_id: order.id, rating: stars, comment: comment || null,
+      });
+    }
+    setRated(true); setRating(false);
+  };
 
   return (
-    <div className="space-y-6 py-6">
-      {/* Map Container with Live Tracking - Uber/Bolt Style */}
-      <div className="relative">
-        <LiveTrackingMap
-          stationPosition={stationPosition}
-          riderPosition={riderPosition}
-          destinationPosition={destinationPosition}
-          height="400px"
-          onRiderPositionChange={(newPosition) => {
-            // Update ref for ETA calculation without causing re-renders
-            riderPositionRef.current = newPosition;
-            // Only update state occasionally to avoid infinite loops
-            setRiderPosition(prev => {
-              // Only update if position changed significantly (more than 50 meters)
-              const latDiff = Math.abs(newPosition.lat - prev.lat);
-              const lngDiff = Math.abs(newPosition.lng - prev.lng);
-              if (latDiff > 0.0005 || lngDiff > 0.0005) {
-                return newPosition;
-              }
-              return prev;
-            });
-          }}
-        />
-        
-        {/* ETA Overlay - Real-time calculation */}
-        <div className="absolute bottom-4 left-4 right-4 z-10">
-          <GlassCard className="p-4 bg-white/95 backdrop-blur-sm border border-white/20">
-            {calculatingETA ? (
-              <div className="flex items-center justify-center gap-2">
-                <Loader2 className="w-4 h-4 text-brand-deep-blue animate-spin" />
-                <p className="text-sm text-gray-600">Calculating ETA...</p>
-              </div>
-            ) : deliveryRoute ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-brand-deep-blue" />
-                    <div>
-                      <p className="text-xs text-gray-500">Estimated Arrival</p>
-                      <p className="text-lg font-bold text-brand-deep-blue">
-                        {formatDuration(deliveryRoute.total.duration)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-gray-500">Total Distance</p>
-                    <p className="text-lg font-bold text-gray-900">
-                      {deliveryRoute.total.distance} km
-                    </p>
-                  </div>
-                </div>
-                <div className="pt-2 border-t border-gray-200/50">
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Rider → Station: {deliveryRoute.riderToStation.distance} km ({formatDuration(deliveryRoute.riderToStation.duration)})</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500 mt-1">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      Station → You: {deliveryRoute.stationToCustomer.distance} km ({formatDuration(deliveryRoute.stationToCustomer.duration)})
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <p className="text-sm text-gray-600">Unable to calculate ETA</p>
-              </div>
-            )}
-          </GlassCard>
+    <div className="pb-10 md:grid md:grid-cols-[1.35fr_1fr] md:gap-6 md:items-start">
+      {/* ── Map ─────────────────────────────── */}
+      <div className="-mx-4 -mt-5 md:m-0 md:sticky md:top-28">
+        <div className="relative md:rounded-[28px] overflow-hidden md:shadow-[0_24px_50px_-24px_rgba(23,19,15,0.45)]">
+          {riderActive || delivered ? (
+            <LiveTrackingMap
+              orderId={order.id}
+              stationPosition={stationPos}
+              riderPosition={hasRiderPos ? { lat: order.rider_lat!, lng: order.rider_lng!, heading: order.rider_heading ?? 0 } : { lat: stationPos.lat, lng: stationPos.lng, heading: 0 }}
+              destinationPosition={{ lat: order.delivery_lat, lng: order.delivery_lng, address: order.delivery_address }}
+              orderStatus={order.status}
+              height="min(56vh, 520px)"
+              className="!rounded-none"
+              onETAUpdate={(m) => setEta(m)}
+            />
+          ) : (
+            <div className="h-[34vh] md:h-[520px] glow-flame flex flex-col items-center justify-center text-white text-center px-6">
+              <span className="relative flex w-16 h-16">
+                {!cancelled && <span className="absolute inset-0 rounded-full bg-flame/40 animate-ping-soft" />}
+                <span className="relative w-16 h-16 rounded-full glass-dark-surface flex items-center justify-center">
+                  {cancelled ? <AlertTriangle className="w-7 h-7" /> : <Bike className="w-7 h-7" />}
+                </span>
+              </span>
+              <p className="mt-4 text-white/75 text-[0.875rem] max-w-xs">
+                {cancelled ? 'This order was cancelled.' : 'The live map appears as soon as a rider accepts your order.'}
+              </p>
+            </div>
+          )}
+          {DEMO_RIDER && !cancelled && !delivered && (
+            <span className="absolute top-3 left-3 z-10 inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-ink/80 text-white text-[0.75rem] font-semibold backdrop-blur">
+              <FlaskConical className="w-3.5 h-3.5 text-flame-light" /> Test mode · simulated rider
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Order Details */}
-      <GlassCard className="p-6">
-        <div className="flex items-start sm:items-center justify-between mb-6 gap-3 flex-wrap">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg sm:text-title-md font-bold text-gray-900 truncate">Order #{orderId}</h2>
-            <p className="text-sm sm:text-base text-gray-500">{orderData.size} Gas Cylinder</p>
-            {orderData.rating && (
-              <div className="flex items-center gap-2 mt-2">
-                <StarRating rating={orderData.rating} readonly size="sm" />
-                <span className="text-xs sm:text-sm text-gray-600">Your rating</span>
+      {/* ── Sheet ───────────────────────────── */}
+      <div className="relative -mt-7 md:mt-0 space-y-3">
+        <section className="card !rounded-[28px] md:!rounded-[24px] p-5 !bg-white/85" aria-live="polite">
+          <span className="md:hidden block mx-auto -mt-2 mb-3 w-10 h-1.5 rounded-full bg-cream-deep" aria-hidden="true" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[0.75rem] font-semibold text-ink-faint">Order #{order.order_number}</p>
+              <h1 className="mt-1 text-[1.5rem] leading-tight font-extrabold tracking-tight text-ink">{head.title}</h1>
+              <p className="mt-1 text-[0.9375rem] text-ink-muted">{head.sub}</p>
+            </div>
+            {etaShown && (
+              <div className="shrink-0 text-center rounded-2xl bg-ink text-white px-3.5 py-2.5">
+                <p className="text-[1.375rem] font-extrabold leading-none tabular-nums">{eta}</p>
+                <p className="text-[0.6875rem] text-white/70 mt-1">min</p>
               </div>
             )}
           </div>
-          <StatusBadge status={orderData.status as any} />
-        </div>
 
-        {/* Timeline */}
-        <div className="space-y-4">
-          {orderSteps.map((step, index) => (
-            <motion.div
-              key={step.id}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="flex items-start gap-3"
-            >
-              <div className={`
-                w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0
-                ${step.completed
-                  ? 'bg-brand-deep-blue text-white'
-                  : step.current
-                  ? 'bg-brand-deep-blue/20 text-brand-deep-blue border-2 border-brand-deep-blue'
-                  : 'bg-gray-200 text-gray-400'
-                }
-              `}>
-                {step.completed ? (
-                  <CheckCircle className="w-5 h-5" />
-                ) : (
-                  <span className="font-semibold">{step.id}</span>
-                )}
+          {!cancelled && (
+            <div className="mt-5">
+              <div className="flex gap-1.5">
+                {STEPS.map((_, i) => (
+                  <span key={i} className={`h-1.5 flex-1 rounded-full transition-colors duration-500 ${
+                    i < step || delivered ? 'bg-flame' : i === step ? 'bg-gradient-to-r from-flame to-flame-light animate-pulse-glow' : 'bg-cream-deep'
+                  }`} />
+                ))}
               </div>
-              <div className="flex-1 pt-2 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <p className={`font-medium text-sm sm:text-base truncate ${
-                    step.completed || step.current
-                      ? 'text-gray-900'
-                      : 'text-gray-400'
-                  }`}>
-                    {step.label}
-                  </p>
-                  {step.time && (
-                    <span className="text-xs sm:text-sm text-gray-500 whitespace-nowrap flex-shrink-0">{step.time}</span>
-                  )}
+              <ol className="mt-2.5 grid grid-cols-5 gap-1.5">
+                {STEPS.map((label, i) => {
+                  const done = i < step || delivered;
+                  const current = i === step && !delivered;
+                  const ts = time(order[STEP_TIME[i]]);
+                  return (
+                    <li key={label} className="min-w-0">
+                      <p className={`text-[0.6875rem] leading-tight ${done || current ? 'font-semibold text-ink' : 'text-ink-faint'}`}>
+                        {done && <Check className="inline w-3 h-3 -mt-0.5 mr-0.5 text-flame" strokeWidth={3} />}{label}
+                      </p>
+                      {(done || current) && ts && <p className="text-[0.625rem] text-ink-faint mt-0.5">{ts}</p>}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          )}
+          {cancelled && order.cancellation_reason && <p className="mt-3 text-[0.875rem] text-[#B91C1C]">{order.cancellation_reason}</p>}
+        </section>
+
+        {order.status === 'pending' && (
+          <PaymentRecovery orderId={order.id} total={Number(order.total)} phone={(order as any).contact_phone} onConfirmed={load} />
+        )}
+
+        {/* Rider */}
+        {order.rider_id && !cancelled && (
+          <section className="card p-4 flex items-center gap-3">
+            <span className="w-12 h-12 rounded-full bg-gradient-to-br from-flame-light to-flame-deep text-white font-bold text-[1.125rem] flex items-center justify-center shadow-[0_8px_18px_-8px_rgba(255,107,0,0.8)]">
+              {(order.rider_name || 'R').charAt(0).toUpperCase()}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-ink truncate">{order.rider_name || 'Your rider'}</p>
+              <p className="text-[0.8125rem] text-ink-muted">Your GasRefill rider</p>
+            </div>
+            {order.rider_phone && (
+              <>
+                {waNumber && (
+                  <a href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp rider"
+                    className="w-11 h-11 rounded-full bg-[#E8F6EC] text-[#15803D] flex items-center justify-center">
+                    <MessageCircle className="w-5 h-5" />
+                  </a>
+                )}
+                <a href={`tel:${order.rider_phone}`} aria-label="Call rider" className="w-11 h-11 rounded-full bg-ink text-white flex items-center justify-center">
+                  <Phone className="w-5 h-5" />
+                </a>
+              </>
+            )}
+          </section>
+        )}
+
+        {/* Details (collapsed by default) */}
+        <section className="card overflow-hidden">
+          <button onClick={() => setShowDetails(d => !d)} aria-expanded={showDetails} className="w-full flex items-center gap-3 p-4 text-left">
+            <span className="icon-box icon-box-sm icon-box-primary"><Store className="w-4 h-4" /></span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-semibold text-ink truncate">
+                {cylinders === 1 ? `${order.cylinder_size} kg cylinder` : `${cylinders} cylinders`} · {order.station_name}
+              </span>
+              <span className="block text-[0.8125rem] text-ink-muted">
+                {money(order.total)} · {order.payment_method === 'cash' ? 'Cash on delivery' : order.payment_status === 'paid' ? 'Paid with MoMo' : 'Payment pending'}
+              </span>
+            </span>
+            <ChevronDown className={`w-5 h-5 text-ink-faint transition-transform ${showDetails ? 'rotate-180' : ''}`} />
+          </button>
+          {showDetails && (
+            <div className="px-4 pb-4 space-y-3 animate-fade-in">
+              <div className="flex items-start gap-3 pt-3 border-t border-white/70">
+                <MapPin className="w-4 h-4 mt-0.5 text-ink-faint shrink-0" />
+                <div>
+                  <p className="text-[0.75rem] text-ink-faint">Pick up & return</p>
+                  <p className="font-semibold text-ink leading-snug">{order.delivery_address}</p>
+                  {order.delivery_notes && <p className="text-[0.8125rem] text-ink-muted mt-0.5">“{order.delivery_notes}”</p>}
                 </div>
-                {step.current && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-brand-deep-blue rounded-full animate-pulse" />
-                    <span className="text-sm text-brand-deep-blue">In progress</span>
-                  </div>
-                )}
               </div>
-              {index < orderSteps.length - 1 && (
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: step.completed ? 32 : 0 }}
-                  className={`
-                    absolute left-5 w-0.5 mt-10
-                    ${step.completed ? 'bg-brand-deep-blue' : 'bg-gray-200'}
-                  `}
-                />
-              )}
-            </motion.div>
-          ))}
-        </div>
-      </GlassCard>
-
-      {/* Rider Contact */}
-      <GlassCard className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-deep-blue to-brand-energy-orange rounded-full flex items-center justify-center">
-              <span className="text-white font-bold">KB</span>
-            </div>
-            <div>
-              <h3 className="font-bold text-gray-900">Kwame Boateng</h3>
-              <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-brand-safety-green rounded-full animate-pulse" />
-                <span className="text-sm text-gray-500">Online • 4.9 ★</span>
-              </div>
-            </div>
-          </div>
-          <Shield className="w-6 h-6 text-brand-safety-green" />
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            className="flex-1 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
-            style={{
-              backgroundColor: '#FFFFFF',
-              border: '2px solid rgba(15, 76, 129, 0.3)',
-              color: '#0F4C81',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(15, 76, 129, 0.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-            }}
-            onClick={() => window.location.href = 'tel:+233XXXXXXXXX'}
-          >
-            <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="whitespace-nowrap">Call</span>
-          </button>
-          <button
-            className="flex-1 px-4 py-3 rounded-xl font-semibold text-sm sm:text-base flex items-center justify-center gap-2 transition-all duration-200 active:scale-95"
-            style={{
-              backgroundColor: '#FFFFFF',
-              border: '2px solid rgba(15, 76, 129, 0.3)',
-              color: '#0F4C81',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = 'rgba(15, 76, 129, 0.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#FFFFFF';
-            }}
-            onClick={() => window.location.href = 'sms:+233XXXXXXXXX'}
-          >
-            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="whitespace-nowrap">Message</span>
-          </button>
-        </div>
-      </GlassCard>
-
-      {/* Order Summary */}
-      <GlassCard className="p-6">
-        <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Gas Cost</span>
-            <span className="font-medium">GH₵180.00</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Delivery Fee</span>
-            <span className="font-medium">GH₵8.75</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Safekeeping</span>
-            <span className="font-medium">GH₵5.00</span>
-          </div>
-          <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between">
-            <span className="font-semibold text-gray-900">Total</span>
-            <span className="font-bold text-brand-deep-blue">GH₵193.75</span>
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* Rate Station - Show for delivered orders without rating */}
-      {orderData.status === 'delivered' && !orderData.rating && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <GlassCard className="p-6 bg-gradient-to-br from-brand-energy-orange/5 to-brand-deep-blue/5 border-brand-energy-orange/20">
-            <div className="text-center mb-4">
-              <Star className="w-12 h-12 text-brand-energy-orange mx-auto mb-3" />
-              <h3 className="text-title-md font-bold text-gray-900 mb-2">
-                How was your experience?
-              </h3>
-              <p className="text-sm text-gray-600">
-                Rate {orderData.stationName} to help others
+              <dl className="pt-3 border-t border-white/70 space-y-2 text-[0.875rem]">
+                <div className="flex justify-between text-ink-muted">
+                  <dt className="inline-flex items-center gap-1">Gas
+                    {items.length > 0 && <InfoTip label="your cylinders">{items.map(i => <span key={i.kg} className="block">{i.qty} × {i.kg} kg — {money(i.unit * i.qty)}</span>)}</InfoTip>}
+                  </dt>
+                  <dd className="tabular-nums">{money(order.cylinder_price)}</dd>
+                </div>
+                <div className="flex justify-between text-ink-muted"><dt>Pickup & return</dt><dd className="tabular-nums">{money(order.delivery_fee)}</dd></div>
+                <div className="flex justify-between text-ink-muted"><dt>Safekeeping</dt><dd className="tabular-nums">{money(order.safekeeping_fee)}</dd></div>
+                <div className="flex justify-between pt-2 border-t border-dashed border-line font-bold text-ink text-[1rem]"><dt>Total</dt><dd className="tabular-nums">{money(order.total)}</dd></div>
+              </dl>
+              <p className="inline-flex items-center gap-1.5 text-[0.8125rem] text-ink-muted">
+                {order.payment_method === 'cash' ? <><Banknote className="w-4 h-4" /> Pay the rider in cash when your gas is back</> : <><Smartphone className="w-4 h-4" /> Mobile Money</>}
               </p>
             </div>
-            <PrimaryButton
-              fullWidth
-              variant="energy"
-              onClick={() => setShowRatingModal(true)}
-            >
-              <Star className="w-5 h-5" />
-              <span>Rate Station</span>
-            </PrimaryButton>
-          </GlassCard>
-        </motion.div>
-      )}
+          )}
+        </section>
 
-      {/* Rating Modal */}
-      <RatingModal
-        isOpen={showRatingModal}
-        onClose={() => setShowRatingModal(false)}
-        onSubmit={handleSubmitRating}
-        stationName={orderData.stationName}
-        orderId={orderId}
-      />
+        {delivered && !rated && (
+          <button onClick={() => setRating(true)} className="w-full card-interactive p-4 flex items-center gap-3 text-left">
+            <span className="icon-box icon-box-md icon-box-accent"><Star className="w-5 h-5" /></span>
+            <span className="flex-1"><b className="text-ink">Rate {order.station_name}</b><span className="block text-[0.8125rem] text-ink-muted">Help neighbours pick a good station</span></span>
+          </button>
+        )}
+        {(delivered || cancelled) && (
+          <Link href="/stations" className="w-full h-14 rounded-full btn-primary text-[1rem]">Order again</Link>
+        )}
+      </div>
+
+      <RatingModal isOpen={rating} onClose={() => setRating(false)} onSubmit={handleRating} stationName={order.station_name} orderId={order.id} />
     </div>
   );
 }
 
+export default function TrackingPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="w-7 h-7 text-flame animate-spin" /></div>}>
+      <Tracking />
+    </Suspense>
+  );
+}

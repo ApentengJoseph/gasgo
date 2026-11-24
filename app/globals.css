@@ -1,257 +1,376 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Gaso design system — warm & simple.
+ * Ink (near-black, warm) for text and dark surfaces, Flame (orange) for the
+ * one primary action per screen, Cream for soft backgrounds. Colour is used
+ * sparingly: most of the UI is white, cream and ink.
+ */
 @layer base {
   :root {
-    /* Professional Color System */
-    --color-brand-deep-blue: #0F4C81;
-    --color-brand-corporate-blue: #1A6EC1;
-    --color-brand-energy-orange: #FF7A00;
-    --color-brand-safety-green: #00A878;
-    
-    /* Professional Glass Effects */
-    --glass-opacity: 0.85;
-    --glass-blur: 12px;
+    /* ── Core palette ─────────────────────────── */
+    --flame:        #FF6B00;
+    --flame-deep:   #E25600;
+    --flame-light:  #FF8A3D;
+    --flame-soft:   #FFE9D6;
+    --ink:          #17130F;
+    --ink-soft:     #2A231C;
+    --ink-muted:    #6B6259;
+    --ink-faint:    #A39789;
+    --cream:        #FFF8F0;
+    --cream-deep:   #F3E8DC;
+    --line:         #EFE7DE;
+    --success:      #15803D;
+    --success-soft: #E8F6EC;
+    --danger:       #DC2626;
+    --danger-soft:  #FDECEC;
+
+    /* ── Legacy token names (used across older pages) mapped to the new palette ── */
+    --brand-primary:       var(--ink);
+    --brand-primary-dark:  #000000;
+    --brand-primary-light: var(--ink-soft);
+    --brand-accent:        var(--flame);
+    --brand-accent-light:  var(--flame-light);
+    --brand-green:         var(--success);
+    --brand-green-light:   #22A55A;
+
+    --surface-bg:          #FAF7F3;
+    --surface-card:        #FFFFFF;
+    --surface-elevated:    #FFFFFF;
+
+    --text-primary:        var(--ink);
+    --text-secondary:      var(--ink-muted);
+    --text-muted:          var(--ink-faint);
+
+    --border-default:      var(--line);
+    --border-strong:       #E0D4C6;
+
+    --shadow-xs:  0 1px 2px rgba(23,19,15,0.05);
+    --shadow-sm:  0 1px 3px rgba(23,19,15,0.06), 0 1px 2px rgba(23,19,15,0.04);
+    --shadow-md:  0 8px 24px -8px rgba(23,19,15,0.14);
+    --shadow-lg:  0 18px 40px -16px rgba(23,19,15,0.22);
+    --shadow-xl:  0 30px 60px -24px rgba(23,19,15,0.30);
+    --shadow-primary: 0 10px 24px -10px rgba(23,19,15,0.45);
+    --shadow-accent:  0 12px 28px -10px rgba(255,107,0,0.55);
+
+    --gradient-flame: linear-gradient(120deg, #FF6B00 0%, #FF8A3D 100%);
+
+    /* ── Liquid glass ─────────────────────────── */
+    --glass-bg:        rgba(255,255,255,0.58);
+    --glass-bg-strong: rgba(255,255,255,0.78);
+    --glass-border:    rgba(255,255,255,0.75);
+    --glass-blur:      blur(22px) saturate(180%);
+    --glass-shadow:    inset 0 1px 0 rgba(255,255,255,0.95), inset 0 -1px 0 rgba(255,255,255,0.25), 0 12px 32px -14px rgba(60,35,15,0.22), 0 2px 6px -2px rgba(60,35,15,0.06);
+    --gradient-ink:   linear-gradient(150deg, #17130F 0%, #2A231C 60%, #3A2A1C 100%);
   }
-  
-  * {
-    @apply border-gray-200;
-  }
-  
+
+  * { box-sizing: border-box; }
+
   html {
-    background-color: #F9FAFB !important;
+    background-color: var(--surface-bg);
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+    scroll-padding-top: 88px; /* keep section titles clear of the top bar */
   }
-  
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
   body {
-    @apply bg-gray-50 text-gray-900;
-    background-color: #F9FAFB !important;
-    font-feature-settings: "kern", "liga", "clig", "calt";
+    font-family: 'Bricolage Grotesque Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-optical-sizing: auto;
+    font-size: 15px;
+    /* transparent so the fixed .app-backdrop (z-index:-1) shows through; html carries the base colour */
+    background-color: transparent;
+    color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
+    overflow-x: hidden;
   }
-  
-  /* Prevent black screen on iOS */
-  #__next {
-    background-color: #F9FAFB !important;
-    min-height: 100vh;
-  }
-  
-  main {
-    background-color: #F9FAFB !important;
-  }
-  
-  /* iOS Splash Screen Enhancement */
-  @supports (-webkit-touch-callout: none) {
-    html, body, #__next, main {
-      background-color: #F9FAFB !important;
-    }
-  }
-  
-  /* Professional Focus States */
+
+  h1, h2, h3, h4 { letter-spacing: -0.02em; }
+
   :focus-visible {
-    @apply outline-2 outline-brand-corporate-blue outline-offset-2;
+    outline: 2px solid var(--flame);
+    outline-offset: 2px;
   }
+
+  input, textarea, select, button { font-family: inherit; }
+
+  ::selection { background: var(--flame-soft); color: var(--ink); }
 }
 
 @layer utilities {
-  /* Glass Effect Utilities */
-  .glass-light {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 
-      0 4px 30px rgba(0, 0, 0, 0.1),
-      0 0 0 1px rgba(255, 255, 255, 0.1);
+  /* ── Cards: liquid glass ───────────────────── */
+  .card, .card-elevated, .card-interactive, .glass {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: 24px;
   }
-  
-  .glass-dark {
-    background: rgba(15, 76, 129, 0.1);
-    backdrop-filter: blur(12px) saturate(180%);
-    -webkit-backdrop-filter: blur(12px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  .card-elevated { background: var(--glass-bg-strong); border-radius: 28px; }
+  .card-interactive {
+    cursor: pointer;
+    transition: transform 0.18s ease, box-shadow 0.2s ease, background 0.2s ease;
   }
-  
-  .glass-card {
-    @apply glass-light rounded-2xl;
-    position: relative;
-    overflow: hidden;
+  .card-interactive:hover {
+    background: var(--glass-bg-strong);
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 18px 40px -16px rgba(60,35,15,0.28);
   }
-  
-  .glass-card::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.4),
-      transparent
-    );
+  .card-interactive:active { transform: translateY(0) scale(0.995); }
+  .card-selected {
+    border-color: rgba(255,107,0,0.65) !important;
+    background: rgba(255,248,240,0.85) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 0 0 3px rgba(255,107,0,0.14), 0 14px 32px -14px rgba(255,107,0,0.35) !important;
   }
-  
-  /* Typography Scale */
-  .text-display-xl {
-    @apply text-5xl leading-tight;
-  }
-  
-  .text-display-lg {
-    @apply text-4xl leading-tight;
-  }
-  
-  .text-display-md {
-    @apply text-3xl leading-snug;
-  }
-  
-  .text-display-sm {
-    @apply text-2xl leading-snug;
-  }
-  
-  .text-title-lg {
-    @apply text-xl font-semibold;
-  }
-  
-  .text-title-md {
-    @apply text-lg font-semibold;
-  }
-  
-  .text-title-sm {
-    @apply text-base font-semibold;
-  }
-  
-  .text-body-lg {
-    @apply text-lg leading-relaxed;
-  }
-  
-  .text-body-md {
-    @apply text-base leading-relaxed;
-  }
-  
-  .text-body-sm {
-    @apply text-sm leading-normal;
-  }
-  
-  .text-body-xs {
-    @apply text-xs leading-normal;
+  /* Glass on dark surfaces (photos, ink hero) */
+  .glass-dark-surface {
+    background: rgba(255,255,255,0.12);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    backdrop-filter: blur(20px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 16px 40px -16px rgba(0,0,0,0.45);
   }
 
-  /* Hide scrollbar but keep functionality */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+  /* ── Surfaces with the brand gradient ───────── */
+  .hero-gradient      { background: var(--gradient-ink); }
+  .hero-gradient-warm { background: var(--gradient-ink); }
+  .flame-gradient     { background: var(--gradient-flame); }
+  .glow-flame {
+    background:
+      radial-gradient(60% 80% at 100% 0%, rgba(255,107,0,0.35) 0%, rgba(255,107,0,0) 70%),
+      var(--gradient-ink);
   }
-  
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
+
+  /* ── Buttons ────────────────────────────────── */
+  .btn-primary, .btn-accent {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 52%),
+      var(--gradient-flame);
+    color: #ffffff;
+    border-radius: 999px;
+    font-weight: 700;
+    border: none;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), var(--shadow-accent);
+    transition: filter 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn-primary:hover:not(:disabled), .btn-accent:hover:not(:disabled) {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active:not(:disabled), .btn-accent:active:not(:disabled) { transform: translateY(0); }
+  .btn-dark {
+    background: var(--ink);
+    color: #fff;
+    border-radius: 999px;
+    font-weight: 700;
+    transition: background 0.2s ease;
+  }
+  .btn-dark:hover:not(:disabled) { background: var(--ink-soft); }
+  .btn-ghost {
+    background: var(--glass-bg);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    color: var(--ink);
+    border-radius: 999px;
+    font-weight: 600;
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 4px 12px -6px rgba(60,35,15,0.18);
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+  .btn-ghost:hover { background: var(--glass-bg-strong); }
+
+  /* ── Typography ─────────────────────────────── */
+  .text-display-xl  { font-size: 2.25rem;  line-height: 1.05; letter-spacing: -0.035em; font-weight: 800; }
+  .text-display-lg  { font-size: 1.875rem; line-height: 1.1;  letter-spacing: -0.03em;  font-weight: 800; }
+  .text-display-md  { font-size: 1.625rem; line-height: 1.15; letter-spacing: -0.025em; font-weight: 800; }
+  .text-display-sm  { font-size: 1.375rem; line-height: 1.2;  letter-spacing: -0.02em;  font-weight: 700; }
+  .text-title-lg    { font-size: 1.1875rem; line-height: 1.3; letter-spacing: -0.015em; }
+  .text-title-md    { font-size: 1.0625rem; line-height: 1.35; letter-spacing: -0.01em; }
+  .text-title-sm    { font-size: 0.9375rem; line-height: 1.4; }
+  .text-body-lg     { font-size: 1rem;      line-height: 1.6; }
+  .text-body-md     { font-size: 0.9375rem; line-height: 1.6; }
+  .text-body-sm     { font-size: 0.875rem;  line-height: 1.55; }
+  .text-body-xs     { font-size: 0.8125rem; line-height: 1.5; }
+  .text-label       { font-size: 0.6875rem; line-height: 1.4; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+  .eyebrow          { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--flame-deep); }
+  .page-title       { font-size: 1.75rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.035em; color: var(--ink); }
+  @media (min-width: 768px) { .page-title { font-size: 2.125rem; } }
+
+  /* ── Pills / Badges ─────────────────────────── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill-primary { background: #F1EBE4; color: var(--ink); }
+  .pill-accent  { background: var(--flame-soft); color: var(--flame-deep); }
+  .pill-green   { background: var(--success-soft); color: var(--success); }
+  .pill-gray    { background: #F1EBE4; color: var(--ink-muted); }
+  .pill-success { background: var(--success-soft); color: var(--success); }
+  .pill-warning { background: #FEF3DC; color: #B45309; }
+  .pill-error   { background: var(--danger-soft); color: var(--danger); }
+
+  .divider { height: 1px; background: var(--border-default); border: none; }
+
+  /* ── Icon containers ────────────────────────── */
+  .icon-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    flex-shrink: 0;
+  }
+  .icon-box-sm  { width: 36px; height: 36px; border-radius: 11px; }
+  .icon-box-md  { width: 44px; height: 44px; border-radius: 14px; }
+  .icon-box-lg  { width: 56px; height: 56px; border-radius: 18px; }
+  .icon-box-xl  { width: 68px; height: 68px; border-radius: 22px; }
+  .icon-box-primary { background: #F3EDE6; color: var(--ink); }
+  .icon-box-accent  { background: var(--flame-soft); color: var(--flame-deep); }
+  .icon-box-green   { background: var(--success-soft); color: var(--success); }
+  .icon-box-white   { background: rgba(255,255,255,0.14); color: #ffffff; }
+  .icon-box-flame   { background: var(--gradient-flame); color: #fff; box-shadow: 0 8px 18px -8px rgba(255,107,0,0.7); }
+
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  .glass-light {
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(12px) saturate(160%);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    border: 1px solid var(--border-default);
+  }
+  .glass-dark {
+    background: rgba(23,19,15,0.06);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.12);
   }
 }
 
 @layer components {
-  /* Professional Gradients */
-  .professional-gradient {
-    background: linear-gradient(135deg, #0F4C81 0%, #1A6EC1 100%);
+  .professional-gradient { background: var(--gradient-ink); }
+  .energy-gradient       { background: var(--gradient-flame); }
+  .safety-gradient       { background: linear-gradient(135deg, #15803D 0%, #22A55A 100%); }
+
+  .section-header {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: -0.015em;
+    margin-bottom: 12px;
   }
-  
-  .energy-gradient {
-    background: linear-gradient(135deg, #FF7A00 0%, #FF9E40 100%);
+
+  .list-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    transition: background 0.15s ease;
   }
-  
-  .safety-gradient {
-    background: linear-gradient(135deg, #00A878 0%, #00C9A7 100%);
+  .list-row:hover { background: rgba(255,255,255,0.55); }
+
+  .input-field {
+    width: 100%;
+    height: 52px;
+    padding: 0 16px;
+    background: rgba(255,255,255,0.72);
+    border: 1px solid rgba(224,212,198,0.9);
+    border-radius: 16px;
+    box-shadow: inset 0 1px 2px rgba(60,35,15,0.05);
+    font-size: 1rem;
+    color: var(--text-primary);
+    transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    outline: none;
   }
+  textarea.input-field { height: auto; padding: 14px 16px; }
+  .input-field:focus {
+    background: #fff;
+    border-color: var(--flame);
+    box-shadow: 0 0 0 4px rgba(255,107,0,0.12);
+  }
+  .input-field::placeholder { color: var(--text-muted); }
+  .field-label { display: block; font-size: 0.875rem; font-weight: 600; color: var(--ink); margin-bottom: 8px; }
 }
 
-/* Animations */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
+/* ── Animations ─────────────────────────────────── */
+@keyframes float      { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+@keyframes shimmer    { 0% { transform: translateX(-100%); } 100% { transform: translateX(200%); } }
+@keyframes pulse-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+@keyframes slide-up   { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fade-in    { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scale-in   { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+@keyframes ripple     { 0% { transform: scale(0); opacity: 0.4; } 100% { transform: scale(4); opacity: 0; } }
+@keyframes ping-soft  { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(2.4); opacity: 0; } }
 
-@keyframes shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
+.animate-float       { animation: float 3.5s ease-in-out infinite; }
+.animate-shimmer     { animation: shimmer 2s infinite; }
+.animate-pulse-glow  { animation: pulse-glow 2.5s ease-in-out infinite; }
+.animate-slide-up    { animation: slide-up 0.35s ease both; }
+.animate-fade-in     { animation: fade-in 0.3s ease both; }
+.animate-scale-in    { animation: scale-in 0.25s ease both; }
+.animate-ping-soft   { animation: ping-soft 1.8s ease-out infinite; }
 
-@keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-/* PWA optimizations */
 @media (display-mode: standalone) {
-  body {
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  button, a {
-    min-height: 44px;
-    min-width: 44px;
-  }
+  body { -webkit-tap-highlight-color: transparent; }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --glass-opacity: 0.7;
+/* ── Installed-app splash (only when launched from the home screen) ── */
+#ios-splash-overlay { display: none; }
+@media (display-mode: standalone) {
+  #ios-splash-overlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: #17130F url('/apple-touch-icon.png') no-repeat center / 140px;
+    z-index: 99999;
+    transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+    pointer-events: none;
   }
-  
-  .glass-light {
-    background: rgba(30, 30, 30, 0.7);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
+  #ios-splash-overlay.hidden { opacity: 0; visibility: hidden; }
 }
 
-/* Reduce motion */
+/* ── Google Maps ────────────────────────────────── */
+.gm-style .gm-style-cc, .gm-style .gm-style-cc span,
+.gm-style-cc a, .gm-style-cc span { font-size: 9px !important; }
+.gm-style .gm-style-iw-c, .gm-style .gm-style-iw-d { font-size: 12px !important; }
+
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
 
-/* Google Maps Control Styling - Reduce text size */
-.gm-style .gm-style-cc,
-.gm-style .gm-style-cc span,
-.gm-style-cc a,
-.gm-style-cc span {
-  font-size: 9px !important;
-  line-height: 1.2 !important;
+/* ── Warm backdrop behind app pages, so the glass has depth ── */
+.app-backdrop {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(42rem 32rem at 100% -6%, rgba(255,138,61,0.30), transparent 62%),
+    radial-gradient(36rem 30rem at -10% 32%, rgba(255,196,150,0.38), transparent 60%),
+    radial-gradient(40rem 28rem at 70% 108%, rgba(255,107,0,0.16), transparent 62%),
+    linear-gradient(180deg, #FFF8F1 0%, #FAF4EC 100%);
 }
 
-.gm-style .gm-style-iw-c,
-.gm-style .gm-style-iw-d {
-  font-size: 12px !important;
+/* No blur support, or the user asked for less transparency: solid, readable surfaces */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card, .card-elevated, .card-interactive, .glass, .btn-ghost { background: rgba(255,255,255,0.96); }
 }
-
-/* Hide or reduce Google Maps attribution text if needed */
-.gm-style-cc {
-  font-size: 8px !important;
+@media (prefers-reduced-transparency: reduce) {
+  .card, .card-elevated, .card-interactive, .glass, .btn-ghost {
+    background: #fff; -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
 }
-
-/* Style map controls to be smaller */
-.gm-control-active,
-.gm-style .gm-control-active {
-  font-size: 11px !important;
-}
-

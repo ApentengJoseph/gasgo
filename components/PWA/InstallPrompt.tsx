@@ -86,7 +86,7 @@ export default function PWAInstallPrompt() {
           <div className="glass-card p-4 flex items-center gap-4">
             <div className="flex-1">
               <h3 className="font-semibold text-gray-900 mb-1">
-                Install Gaso App
+                Install GasRefill App
               </h3>
               <p className="text-sm text-gray-600">
                 Add to home screen for faster access

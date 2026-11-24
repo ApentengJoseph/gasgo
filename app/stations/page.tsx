@@ -1,550 +1,317 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import GlassCard from '@/components/Cards/GlassCard';
-import PrimaryButton from '@/components/Buttons/PrimaryButton';
-import { MapPin, Clock, CheckCircle, Flame, Star, Map, Navigation, BadgeCheck } from 'lucide-react';
+import { WHATSAPP_NUMBER } from '@/lib/utils/constants';
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { useGuestOrder } from '@/lib/store/guestOrder';
-import StarRating from '@/components/Rating/StarRating';
+import { MapPin, Clock, Map as MapIcon, List, Check, LocateFixed, ArrowRight, Loader2, Minus, Plus, Building2, X } from 'lucide-react';
 import MapView from '@/components/Map/MapView';
+import InfoTip from '@/components/UI/InfoTip';
+import { cylinderPhoto } from '@/components/Icons/GasCylinder';
+import { PageHeader, OrderSteps, StickyAction } from '@/components/UI/PageHeader';
+import { useGuestOrder, useOrderHydrated, basketOf } from '@/lib/store/guestOrder';
 import { calculateDistance } from '@/lib/utils/pricing';
-import { formatDuration } from '@/lib/utils/delivery';
 import { saveUserLocation, getSavedUserLocation } from '@/lib/utils/location';
+import { standardSizes, priceFor, type Station } from '@/lib/data/stations';
+import { MAX_CYLINDERS_PER_ORDER, describeItems, type BasketItem } from '@/lib/utils/quote';
 
-// Real Koforidua station data
-const stationsData = [
-  {
-    no: 1,
-    gas_station_name: 'Goil Gas Station',
-    location_description: 'Near Koforidua–Nsutam Rd, Koforidua',
-    latitude: 6.098813,
-    longitude: -0.27765,
-    price_per_kg_ghs: 12.86,
-    price_per_litre_ghs: 7.0,
-    google_maps_status: true,
-  },
-  {
-    no: 2,
-    gas_station_name: 'Lartey Gas',
-    location_description: 'Suhum Road, Near All Nations School, Koforidua',
-    latitude: 6.109447,
-    longitude: -0.292065,
-    price_per_kg_ghs: 12.86,
-    price_per_litre_ghs: 7.0,
-    google_maps_status: true,
-  },
-  {
-    no: 3,
-    gas_station_name: 'Morgas',
-    location_description: 'Suhum Road, Koforidua',
-    latitude: 6.1076519,
-    longitude: -0.2799717,
-    price_per_kg_ghs: 15.0,
-    price_per_litre_ghs: null,
-    google_maps_status: false,
-  },
-  {
-    no: 4,
-    gas_station_name: 'Express Gas (Trinity Oil / Owusu Gas)',
-    location_description: 'Near Effiduasi Technical Institute (Effitech), Close to Asokore, Koforidua',
-    latitude: 6.105526,
-    longitude: -0.277021,
-    price_per_kg_ghs: 15.0,
-    price_per_litre_ghs: null,
-    google_maps_status: true,
-  },
-  {
-    no: 5,
-    gas_station_name: 'Anasset Gas (Bance) / Anasset Company Limited',
-    location_description: 'Pipeline Road, Koforidua',
-    latitude: 6.117014,
-    longitude: -0.251796,
-    price_per_kg_ghs: 13.33,
-    price_per_litre_ghs: 7.7,
-    google_maps_status: true,
-  },
-  {
-    no: 6,
-    gas_station_name: 'Manbah Gas',
-    location_description: 'Pipeline Road, Koforidua',
-    latitude: 6.11364,
-    longitude: -0.249552,
-    price_per_kg_ghs: 13.01,
-    price_per_litre_ghs: 7.16,
-    google_maps_status: true,
-  },
-  {
-    no: 7,
-    gas_station_name: 'Dukes Gas (Total 4)',
-    location_description: 'Total 4, Koforidua',
-    latitude: 6.104499,
-    longitude: -0.250154,
-    price_per_kg_ghs: 14.28,
-    price_per_litre_ghs: 7.7,
-    google_maps_status: true,
-  },
-  {
-    no: 8,
-    gas_station_name: 'Yokwa Gas Company Limited',
-    location_description: 'Adweso Road, close to Galloway, Near School of Nursing',
-    latitude: 6.0754564,
-    longitude: -0.2499899,
-    price_per_kg_ghs: 15.0,
-    price_per_litre_ghs: 7.3,
-    google_maps_status: false,
-  },
-];
+const CITY_CENTRE = { lat: 6.0833, lng: -0.25 };
+type Sort = 'price' | 'distance';
 
-// Standard cylinder sizes
-const standardSizes = [
-  { kg: 6, label: '6kg' },
-  { kg: 12, label: '12kg' },
-  { kg: 25, label: '25kg' },
-];
-
-interface StationWithDistance {
-  id: string;
-  name: string;
-  address: string;
-  coordinates: { lat: number; lng: number };
-  pricePerKg: number;
-  distance?: number; // One-way distance in km
-  roundtripDistance?: number; // Roundtrip distance in km
-  estimatedTime?: number; // in minutes
-  rating: number; // Default rating, can be updated later
-  googleMapsVerified: boolean; // Verified on Google Maps
-}
-
-export default function StationsPage() {
+export default function OrderGasPage() {
   const router = useRouter();
-  const { updateStation, updateCylinder } = useGuestOrder();
-  const [selectedStation, setSelectedStation] = useState<string | null>(null);
-  const [selectedKg, setSelectedKg] = useState<number | null>(null);
-  const [customKg, setCustomKg] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [showMap, setShowMap] = useState(true);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [locationError, setLocationError] = useState<string | null>(null);
-  const [gettingLocation, setGettingLocation] = useState(false);
+  const hydrated = useOrderHydrated();
+  const { order, updateStation, updateCylinder, updatePrice } = useGuestOrder();
 
-  // Get user's current location (only once, saved to localStorage)
+  const [stations, setStations] = useState<Station[] | null>(null);
+  const [live, setLive] = useState(true);
+  const [basket, setBasket] = useState<BasketItem[]>([]);
+  const [customKg, setCustomKg] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [sort, setSort] = useState<Sort>('price');
+  const [view, setView] = useState<'list' | 'map'>('list');
+  const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
+  const [locApprox, setLocApprox] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  useEffect(() => { router.prefetch('/order'); router.prefetch('/checkout'); }, [router]);
+
   useEffect(() => {
-    const getUserLocation = () => {
-      // First, check if we have a saved location
-      const savedLocation = getSavedUserLocation();
-      if (savedLocation) {
-        setUserLocation({ lat: savedLocation.lat, lng: savedLocation.lng });
-        setGettingLocation(false);
-        setLocationError(null);
-        return;
-      }
-
-      // If no saved location, fetch it once
-      if (!navigator.geolocation) {
-        setLocationError('Geolocation is not supported by your browser');
-        // Default to Koforidua center if geolocation not available
-        setUserLocation({ lat: 6.0833, lng: -0.2500 });
-        return;
-      }
-
-      setGettingLocation(true);
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          };
-          
-          // Save location to localStorage
-          saveUserLocation(location);
-          
-          setUserLocation(location);
-          setGettingLocation(false);
-          setLocationError(null);
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setLocationError('Unable to get your location');
-          // Default to Koforidua center
-          setUserLocation({ lat: 6.0833, lng: -0.2500 });
-          setGettingLocation(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
-    };
-
-    getUserLocation();
+    fetch('/api/stations').then(r => r.json())
+      .then(d => { setStations(d.stations ?? []); setLive(d.live !== false); })
+      .catch(() => { setStations([]); setLive(false); });
   }, []);
 
-  // Calculate distance and ETA for each station
-  const stationsWithDistance = useMemo(() => {
-    if (!userLocation) return [];
+  // Start from ?size= (homepage), else the saved basket, else one 12 kg
+  useEffect(() => {
+    if (!hydrated) return;
+    const q = Number(new URLSearchParams(window.location.search).get('size'));
+    const saved = basketOf(order);
+    setBasket(q ? [{ kg: q, qty: 1 }] : saved.length ? saved : [{ kg: 12, qty: 1 }]);
+    if (order.stationId) setSelectedId(order.stationId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated]);
 
-    return stationsData.map((station) => {
-      const distance = calculateDistance(
-        userLocation.lat,
-        userLocation.lng,
-        station.latitude,
-        station.longitude
-      );
+  const locate = () => {
+    if (!navigator.geolocation) { setUserLoc(CITY_CENTRE); setLocApprox(true); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      p => { const loc = { lat: p.coords.latitude, lng: p.coords.longitude }; saveUserLocation(loc); setUserLoc(loc); setLocApprox(false); setLocating(false); },
+      () => { setUserLoc(prev => prev ?? CITY_CENTRE); setLocApprox(true); setLocating(false); },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  };
+  useEffect(() => {
+    const saved = getSavedUserLocation();
+    if (saved) setUserLoc({ lat: saved.lat, lng: saved.lng }); else locate();
+  }, []);
 
-      // Estimate delivery time using tricycle speed (22 km/h average in urban areas)
-      // Add 5 minutes for loading at station
-      const tricycleSpeed = 22; // km/h
-      const estimatedTime = Math.round((distance / tricycleSpeed) * 60) + 5;
-
-      // Calculate roundtrip distance (to station + back to customer)
-      const roundtripDistance = distance * 2;
-
-      return {
-        id: station.no.toString(),
-        name: station.gas_station_name,
-        address: station.location_description,
-        coordinates: { lat: station.latitude, lng: station.longitude },
-        pricePerKg: station.price_per_kg_ghs,
-        distance, // One-way distance
-        roundtripDistance, // Roundtrip distance
-        estimatedTime,
-        rating: 4.5, // Default rating, can be updated from API later
-        googleMapsVerified: station.google_maps_status || false,
-      };
+  // ── Basket ─────────────────────────────────
+  const count = basket.reduce((n, i) => n + i.qty, 0);
+  const full = count >= MAX_CYLINDERS_PER_ORDER;
+  const qtyOf = (kg: number) => basket.find(i => i.kg === kg)?.qty ?? 0;
+  const setQty = (kg: number, qty: number) => {
+    setBasket(prev => {
+      const others = prev.filter(i => i.kg !== kg);
+      const othersCount = others.reduce((n, i) => n + i.qty, 0);
+      const capped = Math.max(0, Math.min(qty, MAX_CYLINDERS_PER_ORDER - othersCount));
+      const next = capped ? [...others, { kg, qty: capped }] : others;
+      return next.sort((a, b) => a.kg - b.kg);
     });
-  }, [userLocation]);
-
-  // Sort stations by distance (closest first)
-  const sortedStations = useMemo(() => {
-    return [...stationsWithDistance].sort((a, b) => (a.distance || 0) - (b.distance || 0));
-  }, [stationsWithDistance]);
-
-  const handleSelectStation = (stationId: string) => {
-    setSelectedStation(stationId);
-    const station = sortedStations.find((s) => s.id === stationId);
-    if (station) {
-      updateStation(stationId, station.name);
-    }
   };
-
-  const handleSelectKg = (kg: number) => {
-    setSelectedKg(kg);
-    setCustomKg(''); // Clear custom input when selecting standard size
+  const addCustom = () => {
+    const kg = Math.min(50, Math.max(1, Number(customKg)));
+    if (!kg || full) return;
+    setQty(kg, qtyOf(kg) + 1);
+    setCustomKg('');
   };
+  const customLines = basket.filter(i => !standardSizes.some(s => s.kg === i.kg));
 
-  const handleCustomKgChange = (value: string) => {
-    setCustomKg(value);
-    const kg = parseFloat(value);
-    if (!isNaN(kg) && kg > 0) {
-      setSelectedKg(kg);
-    } else {
-      setSelectedKg(null);
-    }
-  };
+  // Cheapest per-size price across stations, for the "from" label on each tile
+  const fromPrice = (kg: number) => stations?.length ? Math.min(...stations.map(s => priceFor(s, kg))) : null;
+
+  // ── Stations priced for this basket ───────
+  const rows = useMemo(() => {
+    if (!stations) return [];
+    const origin = userLoc ?? CITY_CENTRE;
+    const list = stations.map(s => {
+      const km = calculateDistance(origin.lat, origin.lng, s.lat, s.lng);
+      const gas = basket.reduce((sum, i) => sum + priceFor(s, i.kg) * i.qty, 0);
+      return { ...s, km, eta: Math.round((km / 22) * 60) + 5, gas: Math.round(gas * 100) / 100 };
+    });
+    const cheapest = Math.min(...list.map(r => r.gas));
+    const nearest = Math.min(...list.map(r => r.km));
+    return list
+      .map(r => ({ ...r, cheapest: r.gas === cheapest, nearest: r.km === nearest }))
+      .sort((a, b) => sort === 'price' ? a.gas - b.gas || a.km - b.km : a.km - b.km);
+  }, [stations, userLoc, basket, sort]);
+
+  const selected = rows.find(r => r.id === selectedId) ?? null;
+  const canOrder = live && !!selected && count > 0;
 
   const handleContinue = () => {
-    if (selectedStation && selectedKg) {
-      setLoading(true);
-      const station = sortedStations.find((s) => s.id === selectedStation);
-      if (!station) {
-        setLoading(false);
-        return;
-      }
-
-      const totalPrice = station.pricePerKg * selectedKg;
-      const cylinderName = customKg ? `${selectedKg}kg Cylinder` : `${selectedKg}kg Cylinder`;
-
-      // Save to guest order
-      updateCylinder(selectedKg.toString(), cylinderName, totalPrice);
-
-      // Navigate to order page
-      router.push('/order');
-    }
+    if (!selected) return;
+    updateStation(selected.id, selected.name, { lat: selected.lat, lng: selected.lng });
+    // first line drives cylinderSize; full basket goes in items
+    const lines = basket.filter(i => i.qty > 0);
+    updateCylinder(String(lines[0].kg), describeItems(lines), selected.gas);
+    useGuestOrder.setState(s => ({
+      order: { ...s.order, items: lines.map(i => ({ id: `${i.kg}kg`, name: `${i.kg} kg`, price: priceFor(selected, i.kg), quantity: i.qty })) },
+    }));
+    updatePrice(selected.gas);
+    router.push('/order');
   };
 
-  const selectedStationData = sortedStations.find((s) => s.id === selectedStation);
-  const finalKg = selectedKg || 0;
-  const calculatedPrice = selectedStationData && finalKg > 0 
-    ? selectedStationData.pricePerKg * finalKg 
-    : 0;
-
-  // Koforidua center coordinates for map
-  const koforiduaCenter = { lat: 6.0833, lng: -0.2500 };
-
-  // Prepare map markers from stations
-  const mapMarkers = useMemo(
-    () =>
-      sortedStations.map((station) => ({
-        id: station.id,
-        position: station.coordinates,
-        label: station.name,
-      })),
-    [sortedStations]
-  );
+  const bulkLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent('Hello GasRefill, I need a bulk gas refill (more than 6 cylinders) in Koforidua.')}`;
 
   return (
-    <div className="space-y-6 py-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-display-sm font-bold text-gray-900 mb-2">Select Station</h1>
-          <p className="text-gray-600">Choose a nearby station and gas size</p>
-        </div>
-        <button
-          onClick={() => setShowMap(!showMap)}
-          className="px-3 py-1.5 rounded-xl border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-1.5"
-        >
-          <Map className="w-3.5 h-3.5" />
-          <span className="text-xs font-medium whitespace-nowrap hidden xs:inline">{showMap ? 'Hide' : 'Show'} Map</span>
-          <span className="text-xs font-medium whitespace-nowrap xs:hidden">{showMap ? 'Hide' : 'Show'}</span>
-        </button>
-      </div>
+    <div className="pb-28">
+      <OrderSteps current={0} />
+      <PageHeader title="What do you need?" subtitle={`Mix any sizes, up to ${MAX_CYLINDERS_PER_ORDER} cylinders per delivery.`} />
 
-      {/* Location Status */}
-      {gettingLocation && (
-        <GlassCard className="p-4 bg-brand-deep-blue/5 border-brand-deep-blue/20">
-          <div className="flex items-center gap-3">
-            <Navigation className="w-5 h-5 text-brand-deep-blue animate-spin" />
-            <p className="text-sm text-gray-700">Getting your location...</p>
-          </div>
-        </GlassCard>
-      )}
-
-      {/* Location Permission Denied - Explanation */}
-      {locationError && !gettingLocation && (
-        <GlassCard className="p-5 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200">
-          <div className="flex items-start gap-3 mb-3">
-            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-              <MapPin className="w-5 h-5 text-amber-700" />
-            </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-gray-900 mb-1">Location Access Needed</h3>
-              <p className="text-sm text-gray-700 mb-3">
-                We need your location to provide accurate distance and delivery time estimates.
-              </p>
-              <div className="space-y-2 text-xs text-gray-600">
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-1.5 flex-shrink-0" />
-                  <span>Calculate exact distance from your location to each gas station</span>
+      {/* ── Sizes ─────────────────────────────── */}
+      <section aria-label="Cylinder sizes" className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {standardSizes.map(s => {
+          const qty = qtyOf(s.kg);
+          const from = fromPrice(s.kg);
+          return (
+            <div key={s.kg} className={`glass !rounded-[22px] p-2 transition-all ${qty ? 'card-selected' : ''}`}>
+              <div className="relative aspect-[3/4] rounded-[16px] overflow-hidden bg-cream-deep">
+                <Image src={cylinderPhoto(s.kg)} alt={`${s.kg} kg gas cylinder`} fill priority sizes="(min-width: 768px) 180px, 45vw" className="object-cover" />
+                <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+                <div className="absolute left-3 bottom-2.5 text-white">
+                  <p className="text-[1.375rem] font-extrabold leading-none tracking-tight">{s.label}</p>
+                  <p className="text-[0.75rem] text-white/80 mt-1">{s.desc}</p>
                 </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-1.5 flex-shrink-0" />
-                  <span>Provide accurate estimated delivery times</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-1.5 flex-shrink-0" />
-                  <span>Show your location on the map for better navigation</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <div className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-1.5 flex-shrink-0" />
-                  <span>Sort stations by proximity to find the nearest one</span>
-                </div>
+                {qty > 0 && (
+                  <span className="absolute top-2 right-2 min-w-7 h-7 px-2 rounded-full bg-flame text-white text-[0.8125rem] font-bold flex items-center justify-center shadow-[0_6px_14px_-4px_rgba(255,107,0,0.8)]">
+                    ×{qty}
+                  </span>
+                )}
               </div>
-              <button
-                onClick={() => {
-                  setGettingLocation(true);
-                  setLocationError(null);
-                  navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                      const location = {
-                        lat: position.coords.latitude,
-                        lng: position.coords.longitude,
-                      };
-                      
-                      // Save location to localStorage
-                      saveUserLocation(location);
-                      
-                      setUserLocation(location);
-                      setGettingLocation(false);
-                      setLocationError(null);
-                    },
-                    (error) => {
-                      setLocationError('Unable to get your location');
-                      setUserLocation({ lat: 6.0833, lng: -0.2500 });
-                      setGettingLocation(false);
-                    },
-                    {
-                      enableHighAccuracy: true,
-                      timeout: 10000,
-                      maximumAge: 0,
-                    }
-                  );
-                }}
-                className="mt-3 px-4 py-2 bg-brand-deep-blue text-white rounded-lg text-sm font-semibold hover:bg-brand-corporate-blue transition-colors"
-              >
-                Try Again
-              </button>
+              <div className="px-1.5 pt-2.5 pb-1">
+                <p className="text-[0.8125rem] text-ink-muted">{from != null ? <>from <b className="text-ink">GH₵{from.toFixed(2)}</b></> : '…'}</p>
+                {qty === 0 ? (
+                  <button
+                    onClick={() => setQty(s.kg, 1)}
+                    disabled={full}
+                    className="mt-2 w-full h-10 rounded-full btn-ghost inline-flex items-center justify-center gap-1.5 text-[0.875rem] disabled:opacity-40"
+                  >
+                    <Plus className="w-4 h-4" /> Add
+                  </button>
+                ) : (
+                  <div className="mt-2 h-10 rounded-full bg-ink text-white flex items-center justify-between px-1">
+                    <button onClick={() => setQty(s.kg, qty - 1)} aria-label={`One less ${s.label}`} className="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center"><Minus className="w-4 h-4" /></button>
+                    <span className="text-[0.9375rem] font-bold tabular-nums" aria-live="polite">{qty}</span>
+                    <button onClick={() => setQty(s.kg, qty + 1)} disabled={full} aria-label={`One more ${s.label}`} className="w-8 h-8 rounded-full hover:bg-white/15 flex items-center justify-center disabled:opacity-30"><Plus className="w-4 h-4" /></button>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </GlassCard>
-      )}
+          );
+        })}
+      </section>
 
-      {/* Map View */}
-      {showMap && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <MapView
-            center={userLocation || koforiduaCenter}
-            markers={mapMarkers}
-            userLocation={userLocation}
-            selectedMarkerId={selectedStation}
-            zoom={14}
-            height="300px"
-            className="mb-6"
+      {/* Other sizes */}
+      <div className="mt-3 glass !rounded-[20px] p-3 flex items-center gap-2.5 flex-wrap">
+        <span className="text-[0.875rem] font-semibold text-ink pl-1">Other size</span>
+        <span className="flex items-center gap-1.5 h-10 pl-3.5 pr-2 rounded-full bg-white/80 border border-line">
+          <input
+            inputMode="numeric"
+            value={customKg}
+            onChange={e => setCustomKg(e.target.value.replace(/\D/g, '').slice(0, 2))}
+            onKeyDown={e => e.key === 'Enter' && addCustom()}
+            placeholder="e.g. 14"
+            aria-label="Cylinder size in kg"
+            className="w-16 bg-transparent outline-none text-[0.9375rem] font-semibold text-ink placeholder:text-ink-faint placeholder:font-normal"
           />
-        </motion.div>
-      )}
-
-      {/* Station List */}
-      <div className="space-y-4">
-        {sortedStations.map((station, index) => (
-          <motion.div
-            key={station.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.1 }}
-          >
-            <GlassCard
-              className={`p-6 cursor-pointer transition-all hover:shadow-lg ${
-                selectedStation === station.id ? 'ring-2 ring-brand-deep-blue shadow-lg' : ''
-              }`}
-              onClick={() => handleSelectStation(station.id)}
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-2 flex-wrap">
-                    <h3 className="text-title-md font-bold text-gray-900 truncate">{station.name}</h3>
-                    {selectedStation === station.id && (
-                      <CheckCircle className="w-5 h-5 text-brand-deep-blue flex-shrink-0" />
-                    )}
-                    {station.googleMapsVerified && (
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 rounded-full flex-shrink-0">
-                        <BadgeCheck className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-xs font-semibold text-green-700 whitespace-nowrap">Verified on Google</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm mb-1 flex-wrap">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-deep-blue/10 text-brand-deep-blue rounded-full border border-brand-deep-blue/20 whitespace-nowrap">
-                      <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="font-semibold text-xs sm:text-sm">{station.distance ? `${station.distance.toFixed(1)} km` : 'N/A'}</span>
-                      <span className="text-xs opacity-70 hidden xs:inline">({station.roundtripDistance ? `${station.roundtripDistance.toFixed(1)} km RT` : 'N/A'})</span>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-brand-energy-orange/10 text-brand-energy-orange rounded-full border border-brand-energy-orange/20 whitespace-nowrap">
-                      <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="font-semibold text-xs sm:text-sm">{station.estimatedTime ? formatDuration(station.estimatedTime) : 'N/A'}</span>
-                    </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <StarRating rating={station.rating} readonly size="sm" />
-                      <span className="text-xs sm:text-sm font-semibold text-gray-700">{station.rating}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-500 line-clamp-2">{station.address}</p>
-                </div>
-                <div className="text-left sm:text-right flex-shrink-0">
-                  <p className="text-lg sm:text-title-md font-bold text-brand-deep-blue">
-                    GH₵{station.pricePerKg.toFixed(2)}
-                  </p>
-                  <p className="text-xs text-gray-500">per kg</p>
-                </div>
-              </div>
-
-              {/* Size Selection */}
-              {selectedStation === station.id && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm font-medium text-gray-700 mb-3">Select Gas Size:</p>
-                  
-                  {/* Standard Sizes */}
-                  <div className="grid grid-cols-3 gap-2 mb-3">
-                    {standardSizes.map((size) => (
-                      <button
-                        key={size.kg}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectKg(size.kg);
-                        }}
-                        className={`
-                          p-2.5 sm:p-3 rounded-lg border-2 transition-all
-                          ${
-                            selectedKg === size.kg && !customKg
-                              ? 'border-brand-deep-blue bg-brand-deep-blue/5'
-                              : 'border-gray-200 hover:border-gray-300'
-                          }
-                        `}
-                      >
-                        <div className="text-center">
-                          <Flame className="w-5 h-5 sm:w-6 sm:h-6 mx-auto mb-1 text-brand-energy-orange" />
-                          <p className="text-xs sm:text-sm font-semibold text-gray-900">{size.label}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Custom Kg Input */}
-                  <div className="mt-3">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Or enter custom size (kg):
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      step="0.1"
-                      value={customKg}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleCustomKgChange(e.target.value);
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                      placeholder="e.g., 10.5"
-                      className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-deep-blue focus:border-brand-deep-blue text-sm"
-                    />
-                  </div>
-
-                  {/* Price Preview */}
-                  {selectedKg && selectedKg > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs sm:text-sm text-gray-600 truncate">
-                          {selectedKg}kg × GH₵{station.pricePerKg.toFixed(2)}/kg
-                        </span>
-                        <span className="text-base sm:text-lg font-bold text-brand-deep-blue whitespace-nowrap flex-shrink-0">
-                          GH₵{calculatedPrice.toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </GlassCard>
-          </motion.div>
+          <span className="text-[0.8125rem] text-ink-muted">kg</span>
+        </span>
+        <button onClick={addCustom} disabled={!customKg || full} className="h-10 px-4 rounded-full btn-dark text-[0.875rem] disabled:opacity-40">Add</button>
+        {customLines.map(l => (
+          <span key={l.kg} className="inline-flex items-center gap-1.5 h-9 pl-3 pr-1.5 rounded-full bg-flame-soft text-flame-deep text-[0.8125rem] font-bold">
+            {l.qty} × {l.kg} kg
+            <button onClick={() => setQty(l.kg, 0)} aria-label={`Remove ${l.kg} kg`} className="w-6 h-6 rounded-full hover:bg-white/60 flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
+          </span>
         ))}
       </div>
 
-      {/* Continue Button */}
-      {selectedStation && selectedKg && selectedKg > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <PrimaryButton fullWidth size="lg" onClick={handleContinue} loading={loading}>
-            Continue to Address
-          </PrimaryButton>
-        </motion.div>
+      {/* Basket line + bulk */}
+      <div className="mt-3 flex items-center justify-between gap-3 px-1 text-[0.875rem]">
+        <p className="text-ink-muted inline-flex items-center gap-1">
+          {count ? <>
+            <b className="text-ink">{count === 1 ? `1 cylinder (${basket.find(i => i.qty)?.kg} kg)` : `${count} cylinders`}</b>
+            {count > 1 && <InfoTip label="your cylinders">{describeItems(basket)}</InfoTip>}
+          </> : 'Add at least one cylinder.'}
+        </p>
+        {count > 0 && <button onClick={() => setBasket([])} className="font-semibold text-ink-muted hover:text-ink">Clear</button>}
+      </div>
+      {full && (
+        <p className="mt-2 px-1 text-[0.8125rem] text-flame-deep">That’s a full load for one rider. Need more? <a href={bulkLink} target="_blank" rel="noopener noreferrer" className="font-bold underline underline-offset-2">Ask for a bulk delivery</a>.</p>
       )}
 
-      {/* Empty State - No stations available */}
-      {sortedStations.length === 0 && (
-        <GlassCard className="p-12 text-center">
-          <MapPin className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-title-md font-semibold text-gray-900 mb-2">No stations available</h3>
-          <p className="text-gray-600">We&apos;re currently expanding our network. Check back soon!</p>
-        </GlassCard>
+      <a href={bulkLink} target="_blank" rel="noopener noreferrer" className="mt-4 glass !rounded-[20px] p-4 flex items-center gap-3 hover:!bg-white/80 transition">
+        <span className="icon-box icon-box-md icon-box-primary"><Building2 className="w-5 h-5" /></span>
+        <span className="flex-1 min-w-0">
+          <span className="block font-bold text-ink text-[0.9375rem]">Restaurant, chop bar, school or hostel?</span>
+          <span className="block text-[0.8125rem] text-ink-muted">Bulk refills and weekly scheduled deliveries. Chat with us.</span>
+        </span>
+        <ArrowRight className="w-5 h-5 text-ink-faint" />
+      </a>
+
+      {/* ── Stations ─────────────────────────── */}
+      <section aria-label="Stations" className="mt-9">
+        <div className="flex items-end justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-[1.25rem] font-extrabold tracking-tight text-ink">Where should we refill?</h2>
+            <p className="text-[0.8125rem] text-ink-muted inline-flex items-center gap-1">
+              Gas price for your whole order
+              <InfoTip label="station prices">Each station sets its own gas price. Pickup & return and safekeeping are added on the next step, once we know your address.</InfoTip>
+            </p>
+          </div>
+          <button onClick={() => setView(v => (v === 'list' ? 'map' : 'list'))}
+            className="glass !rounded-full inline-flex items-center gap-1.5 h-9 px-3.5 text-[0.8125rem] font-semibold text-ink shrink-0">
+            {view === 'list' ? <><MapIcon className="w-4 h-4" /> Map</> : <><List className="w-4 h-4" /> List</>}
+          </button>
+        </div>
+
+        <div className="glass !rounded-full inline-flex p-1 mb-3">
+          {(['price', 'distance'] as Sort[]).map(s => (
+            <button key={s} onClick={() => setSort(s)}
+              className={`h-8 px-3.5 rounded-full text-[0.8125rem] font-semibold transition-all ${sort === s ? 'bg-ink text-white shadow-[0_4px_10px_-4px_rgba(23,19,15,0.6)]' : 'text-ink-muted'}`}>
+              {s === 'price' ? 'Cheapest' : 'Nearest'}
+            </button>
+          ))}
+        </div>
+
+        {locApprox && (
+          <button onClick={locate} className="glass w-full mb-3 flex items-center gap-2.5 !rounded-2xl px-4 py-3 text-left text-[0.8125rem] text-ink-muted">
+            {locating ? <Loader2 className="w-4 h-4 animate-spin text-flame" /> : <LocateFixed className="w-4 h-4 text-flame" />}
+            Distances are from Koforidua centre. <span className="font-semibold text-ink underline underline-offset-2">Use my location</span>
+          </button>
+        )}
+        {!live && stations && (
+          <p className="mb-3 rounded-2xl bg-[#FEF3DC] px-4 py-3 text-[0.8125rem] text-[#92400E]">
+            We can’t reach our station list right now, so prices may be out of date and ordering is paused. Please try again shortly.
+          </p>
+        )}
+
+        {view === 'map' && (
+          <div className="glass mb-4 p-1.5 overflow-hidden"><div className="rounded-[18px] overflow-hidden">
+            <MapView center={userLoc ?? CITY_CENTRE} markers={rows.map(r => ({ id: r.id, position: { lat: r.lat, lng: r.lng }, label: r.name }))}
+              userLocation={userLoc} selectedMarkerId={selectedId} zoom={13} height="320px" />
+          </div></div>
+        )}
+
+        {!stations ? (
+          <div className="space-y-2.5">{[0, 1, 2, 3].map(i => <div key={i} className="glass h-[96px] animate-pulse" />)}</div>
+        ) : (
+          <ul className="space-y-2.5">
+            {rows.map(r => {
+              const isSel = r.id === selectedId;
+              return (
+                <li key={r.id}>
+                  <button onClick={() => setSelectedId(r.id)} aria-pressed={isSel}
+                    className={`glass w-full text-left p-4 transition-all ${isSel ? 'card-selected' : 'hover:!bg-white/80'}`}>
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-0.5 w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center shrink-0 ${isSel ? 'bg-flame border-flame' : 'border-[#D9CCBE] bg-white/60'}`}>
+                        {isSel && <Check className="w-3 h-3 text-white" strokeWidth={3.5} />}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-bold text-[1rem] leading-snug text-ink truncate">{r.name}</p>
+                          <p className="text-[1.125rem] md:text-[1.25rem] leading-none font-extrabold tracking-tight text-ink tabular-nums whitespace-nowrap">
+                            {count ? `GH₵${r.gas.toFixed(2)}` : '—'}
+                          </p>
+                        </div>
+                        <p className="text-[0.8125rem] text-ink-faint truncate mt-0.5">{r.address}</p>
+                        <div className="mt-2.5 flex items-center gap-x-3 gap-y-1.5 flex-wrap text-[0.8125rem] text-ink-muted">
+                          {r.cheapest && count > 0 && <span className="pill pill-accent">Lowest price</span>}
+                          {r.nearest && sort === 'distance' && <span className="pill pill-gray">Nearest</span>}
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap"><MapPin className="w-3.5 h-3.5" />{r.km.toFixed(1)} km</span>
+                          <span className="inline-flex items-center gap-1 whitespace-nowrap"><Clock className="w-3.5 h-3.5" />~{r.eta} min</span>
+                          <span className="hidden sm:inline ml-auto text-[0.75rem] text-ink-faint whitespace-nowrap">GH₵{r.pricePerKg.toFixed(2)}/kg</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {canOrder && selected && (
+        <StickyAction>
+          <button onClick={handleContinue}
+            className="w-full h-14 rounded-full btn-primary !justify-between pl-6 pr-2 text-[1rem]">
+            <span className="truncate">{count} {count === 1 ? 'cylinder' : 'cylinders'} · {selected.name}</span>
+            <span className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full bg-white/20 tabular-nums">
+              GH₵{selected.gas.toFixed(2)} <ArrowRight className="w-4 h-4" />
+            </span>
+          </button>
+        </StickyAction>
       )}
     </div>
   );

@@ -1,12 +1,12 @@
 {
-  "name": "Gaso - Professional Gas Delivery",
-  "short_name": "Gaso",
-  "description": "On-demand gas delivery service with transparent pricing and live tracking",
+  "name": "GasRefill — Gas delivery in Koforidua",
+  "short_name": "GasRefill",
+  "description": "Book a cooking gas refill in Koforidua and track your rider live.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#F9FAFB",
-  "theme_color": "#0F4C81",
+  "background_color": "#FFF8F0",
+  "theme_color": "#17130F",
   "prefer_related_applications": false,
   "orientation": "portrait-primary",
   "icons": [
@@ -47,7 +47,10 @@
       "purpose": "any"
     }
   ],
-  "categories": ["utilities", "business"],
+  "categories": [
+    "utilities",
+    "business"
+  ],
   "screenshots": [],
   "shortcuts": [
     {

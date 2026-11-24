@@ -39,6 +39,18 @@ export const PRICING_CONFIG = {
   DISTANCE_RATE: 1.8, // per km
 } as const;
 
-export const APP_NAME = 'Gaso';
-export const APP_DESCRIPTION = 'Professional Gas Delivery Service';
+/** Brand name, used everywhere in the UI. Change it here to rename the product. */
+export const APP_NAME = 'GasRefill';
+/** Contact details shown across the site. */
+export const SUPPORT_PHONE_DISPLAY = '050 228 7205';
+export const SUPPORT_PHONE_TEL = '+233502287205';
+/** WhatsApp number in international format, digits only (used for every wa.me link). */
+export const WHATSAPP_NUMBER = '233502287205';
+/** TODO: replace with the real Registrar-General business registration number. */
+export const BUSINESS_REG_NO = 'BN000000000';
+
+/** Placeholder email domain for fallback guest logins (never receives mail). */
+export const GUEST_EMAIL_DOMAIN = 'guests.gasrefill.invalid';
+
+export const APP_DESCRIPTION = 'Cooking gas refill delivery in Koforidua';
 

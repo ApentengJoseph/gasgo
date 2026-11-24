@@ -49,3 +49,7 @@ next-env.d.ts
 
 # Prisma
 /prisma/migrations
+
+# local tooling
+.playwright-mcp/
+.claude/settings.local.json

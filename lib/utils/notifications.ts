@@ -1,65 +1,31 @@
-/**
- * Notification Utilities
- */
+import { createClient } from '@/lib/supabase/client';
+import type { OrderStatus } from '@/lib/types/database';
 
-import { prisma } from '@/lib/db/prisma';
+const STATUS_TEMPLATES: Partial<Record<OrderStatus, { title: string; message: (num: string) => string }>> = {
+  assigned:   { title: '🏍️ Rider Assigned',  message: (n) => `A rider has been assigned to order #${n} and is heading to the station.` },
+  collected:  { title: 'Cylinder picked up',  message: (n) => `Your rider has your empty cylinder and is taking it to the station (order #${n}).` },
+  at_station: { title: 'Refilling now',       message: (n) => `Your cylinder is being refilled at the station (order #${n}).` },
+  on_the_way: { title: '🚀 On the Way',       message: (n) => `Your rider is heading to you now. Order #${n} is almost there!` },
+  arriving:   { title: '📍 Arriving Soon',    message: (n) => `Your rider is nearby! Get ready to receive order #${n}.` },
+  delivered:  { title: '✅ Delivered!',        message: (n) => `Order #${n} delivered. Enjoy your gas! Don't forget to rate your experience.` },
+  cancelled:  { title: '❌ Order Cancelled',   message: (n) => `Order #${n} was cancelled. Contact support if this was unexpected.` },
+};
 
-export interface CreateNotificationData {
-  userId: string;
-  orderId?: string;
-  type:
-    | 'ORDER_PLACED'
-    | 'ORDER_CONFIRMED'
-    | 'PAYMENT_CONFIRMED'
-    | 'RIDER_ASSIGNED'
-    | 'RIDER_ON_THE_WAY'
-    | 'ORDER_DELIVERED'
-    | 'ORDER_CANCELLED'
-    | 'LOW_STOCK'
-    | 'PROMOTION';
-  title: string;
-  message: string;
-  metadata?: Record<string, any>;
-}
-
-/**
- * Create a notification
- */
-export async function createNotification(data: CreateNotificationData) {
-  return await prisma.notification.create({
-    data: {
-      userId: data.userId,
-      orderId: data.orderId || null,
-      type: data.type,
-      title: data.title,
-      message: data.message,
-      metadata: data.metadata || null,
-    },
-  });
-}
-
-/**
- * Mark notification as read
- */
-export async function markNotificationAsRead(notificationId: string) {
-  return await prisma.notification.update({
-    where: { id: notificationId },
-    data: { isRead: true },
-  });
-}
-
-/**
- * Mark all notifications as read for a user
- */
-export async function markAllNotificationsAsRead(userId: string) {
-  return await prisma.notification.updateMany({
-    where: {
-      userId,
-      isRead: false,
-    },
-    data: {
-      isRead: true,
-    },
+export async function notifyOrderStatusChange(
+  userId: string,
+  orderId: string,
+  orderNumber: string,
+  status: OrderStatus,
+) {
+  const tmpl = STATUS_TEMPLATES[status];
+  if (!tmpl || !userId) return;
+  const supabase = createClient();
+  await supabase.from('notifications').insert({
+    user_id: userId,
+    type: status,
+    title: tmpl.title,
+    message: tmpl.message(orderNumber),
+    data: { orderId },
   });
 }
 

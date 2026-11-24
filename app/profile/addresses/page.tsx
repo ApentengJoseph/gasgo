@@ -1,120 +1,76 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import GlassCard from '@/components/Cards/GlassCard';
-import PrimaryButton from '@/components/Buttons/PrimaryButton';
-import { ArrowLeft, Home, MapPin, Plus, Edit, Trash2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import { Home, Briefcase, MapPin, Plus, Trash2, Star, Loader2 } from 'lucide-react';
+import { PageHeader } from '@/components/UI/PageHeader';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import type { Address } from '@/lib/types/database';
 
-const savedAddresses = [
-  {
-    id: '1',
-    label: 'Home',
-    address: '123 East Legon Street, Accra',
-    isDefault: true,
-  },
-  {
-    id: '2',
-    label: 'Office',
-    address: '456 Osu Road, Accra',
-    isDefault: false,
-  },
-];
+export default function SavedPlacesPage() {
+  const { userId, loading } = useAuth();
+  const [list, setList] = useState<Address[] | null>(null);
 
-export default function AddressesPage() {
-  const router = useRouter();
+  const load = useCallback(async () => {
+    if (!userId) { setList([]); return; }
+    const d = await (await fetch('/api/addresses')).json();
+    setList(d.addresses ?? []);
+  }, [userId]);
+
+  useEffect(() => { if (!loading) load(); }, [loading, load]);
+
+  const makeDefault = async (id: string) => {
+    await fetch('/api/addresses', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ addressId: id }) });
+    load();
+  };
+  const remove = async (id: string) => {
+    const res = await fetch(`/api/addresses?id=${id}`, { method: 'DELETE' });
+    if (res.ok) { toast.success('Place removed'); load(); } else toast.error('Could not remove that place');
+  };
 
   return (
-    <div className="space-y-6 py-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={() => router.back()}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <h1 className="text-display-sm font-bold text-gray-900">
-          Saved Addresses
-        </h1>
-      </div>
+    <div>
+      <PageHeader
+        back="/profile"
+        title="Saved places"
+        subtitle="Home, work, or anywhere you get gas delivered."
+        action={<Link href="/profile/addresses/add" className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full btn-dark text-[0.875rem]"><Plus className="w-4 h-4" /> Add</Link>}
+      />
 
-      {/* Address List */}
-      <div className="space-y-3">
-        {savedAddresses.map((address, index) => (
-          <motion.div
-            key={address.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-          >
-            <GlassCard className="p-4">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-brand-deep-blue/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  {address.label === 'Home' ? (
-                    <Home className="w-5 h-5 text-brand-deep-blue" />
-                  ) : (
-                    <MapPin className="w-5 h-5 text-brand-deep-blue" />
-                  )}
+      {list === null ? (
+        <div className="flex justify-center py-16"><Loader2 className="w-6 h-6 text-flame animate-spin" /></div>
+      ) : list.length === 0 ? (
+        <div className="card p-8 text-center">
+          <span className="icon-box icon-box-xl icon-box-accent mx-auto"><MapPin className="w-8 h-8" /></span>
+          <h2 className="mt-4 text-[1.125rem] font-bold text-ink">No saved places yet</h2>
+          <p className="mt-1 text-ink-muted">Save your home so your next order takes seconds.</p>
+          <Link href="/profile/addresses/add" className="mt-5 inline-flex h-12 px-6 items-center rounded-full btn-primary">Add a place</Link>
+        </div>
+      ) : (
+        <ul className="card overflow-hidden divide-y divide-line">
+          {list.map(a => {
+            const Icon = a.label?.toLowerCase() === 'home' ? Home : a.label?.toLowerCase() === 'work' || a.label?.toLowerCase() === 'office' ? Briefcase : MapPin;
+            return (
+              <li key={a.id} className="flex items-center gap-3 p-4">
+                <span className="icon-box icon-box-sm icon-box-primary"><Icon className="w-4 h-4" /></span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-ink flex items-center gap-2">{a.label}{a.is_default && <span className="pill pill-accent">Default</span>}</p>
+                  <p className="text-[0.8125rem] text-ink-faint truncate">{a.address}</p>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-semibold text-gray-900">{address.label}</span>
-                    {address.isDefault && (
-                      <span className="text-xs bg-brand-deep-blue/10 text-brand-deep-blue px-2 py-0.5 rounded">
-                        Default
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600">{address.address}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => router.push(`/profile/addresses/edit?id=${address.id}`)}
-                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    aria-label="Edit address"
-                  >
-                    <Edit className="w-4 h-4 text-gray-600" />
+                {!a.is_default && (
+                  <button onClick={() => makeDefault(a.id)} aria-label="Make default" className="w-9 h-9 rounded-full hover:bg-cream flex items-center justify-center text-ink-muted">
+                    <Star className="w-4 h-4" />
                   </button>
-                  <button 
-                    onClick={() => {
-                      if (confirm(`Are you sure you want to delete "${address.label}"?`)) {
-                        // TODO: Delete address from backend
-                        console.log('Delete address:', address.id);
-                        // For now, just show a message
-                        alert('Address deleted (this is a demo)');
-                      }
-                    }}
-                    className="p-2 hover:bg-red-50 rounded-lg transition-colors"
-                    aria-label="Delete address"
-                  >
-                    <Trash2 className="w-4 h-4 text-status-error" />
-                  </button>
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Add New Address */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: savedAddresses.length * 0.1 }}
-      >
-        <GlassCard 
-          className="p-4 cursor-pointer border-2 border-dashed border-gray-300 hover:border-brand-deep-blue hover:bg-brand-deep-blue/5 transition-all"
-          onClick={() => router.push('/profile/addresses/add')}
-        >
-          <div className="flex items-center gap-3 text-gray-600">
-            <Plus className="w-5 h-5" />
-            <span className="font-medium">Add New Address</span>
-          </div>
-        </GlassCard>
-      </motion.div>
+                )}
+                <button onClick={() => remove(a.id)} aria-label="Remove" className="w-9 h-9 rounded-full hover:bg-[#FDECEC] flex items-center justify-center text-ink-muted hover:text-[#DC2626]">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
-

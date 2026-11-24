@@ -14,13 +14,20 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "demo:seed": "node scripts/demo-data.mjs seed",
+    "demo:ride": "node scripts/demo-data.mjs ride",
+    "demo:clean": "node scripts/demo-data.mjs clean"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
     "@hookform/resolvers": "^3.3.2",
     "@prisma/client": "^5.7.1",
     "@react-google-maps/api": "^2.19.3",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.2",
     "bcryptjs": "^2.4.3",
+    "dotenv": "^17.4.2",
     "firebase": "^10.7.1",
     "framer-motion": "^10.16.16",
     "jsonwebtoken": "^9.0.2",
@@ -30,6 +37,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.49.2",
+    "react-hot-toast": "^2.6.0",
     "zod": "^3.22.4",
     "zustand": "^4.4.7"
   },

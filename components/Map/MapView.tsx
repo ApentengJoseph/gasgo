@@ -420,9 +420,9 @@ export default function MapView({
       const userLocationIcon = {
         url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
           <svg width="40" height="50" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
-            <path d="M20 0C9.5 0 1 8.5 1 19c0 14 19 31 19 31s19-17 19-31C39 8.5 30.5 0 20 0z" fill="#0F4C81" stroke="#fff" stroke-width="2"/>
+            <path d="M20 0C9.5 0 1 8.5 1 19c0 14 19 31 19 31s19-17 19-31C39 8.5 30.5 0 20 0z" fill="#17130F" stroke="#fff" stroke-width="2"/>
             <circle cx="20" cy="19" r="8" fill="#fff"/>
-            <circle cx="20" cy="19" r="4" fill="#0F4C81"/>
+            <circle cx="20" cy="19" r="4" fill="#17130F"/>
           </svg>
         `),
         scaledSize: new google.maps.Size(40, 50),
@@ -440,7 +440,7 @@ export default function MapView({
 
       // Create and open InfoWindow with label text
       const infoWindowContent = `
-        <div style="padding: 8px 12px; font-weight: 600; color: #0F4C81; font-size: 13px; text-align: center;">
+        <div style="padding: 8px 12px; font-weight: 600; color: #17130F; font-size: 13px; text-align: center;">
           📍 Your Current Location
         </div>
       `;
@@ -544,7 +544,7 @@ export default function MapView({
                 y1="40%"
                 x2="70%"
                 y2="60%"
-                stroke="#0F4C81"
+                stroke="#17130F"
                 strokeWidth="3"
                 strokeDasharray="5,5"
                 opacity="0.6"
@@ -571,12 +571,12 @@ export default function MapView({
   // Handle load error
   if (loadError) {
     return (
-      <div className={`relative rounded-2xl overflow-hidden border border-gray-200 ${className}`} style={{ height }}>
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-deep-blue/20 via-brand-corporate-blue/10 to-brand-energy-orange/10 flex items-center justify-center">
+      <div className={`relative rounded-2xl overflow-hidden ${className}`} style={{ height }}>
+        <div className="absolute inset-0 bg-[#F3EADF] flex items-center justify-center">
           <div className="text-center p-6">
-            <MapPin className="w-12 h-12 text-brand-deep-blue mx-auto mb-4" />
-            <p className="text-sm text-gray-700 font-medium">
-              Map failed to load. Please check your API key.
+            <MapPin className="w-8 h-8 text-[#FF6B00] mx-auto mb-2" />
+            <p className="text-sm text-[#6B6259] font-medium">
+              The map couldn’t load right now. Your address is saved.
             </p>
           </div>
         </div>
@@ -590,16 +590,26 @@ export default function MapView({
   const shouldShowLoading = (!googleMapsAvailable && !isLoaded) || (isLoading && !map && !googleMapsAvailable);
 
   return (
-    <div className={`relative rounded-2xl overflow-hidden ${className}`} style={{ height }}>
+    <div className={`relative rounded-2xl overflow-hidden bg-[#F3EADF] ${className}`} style={{ height }}>
+      {/* Shown underneath the map; visible only if the map can't draw */}
+      <div className="absolute inset-0 flex items-center justify-center" aria-hidden="true"
+        style={{ background: 'radial-gradient(60% 60% at 50% 45%, #FBEFE2 0%, #F3EADF 70%)' }}>
+        <span className="relative flex w-10 h-10">
+          <span className="absolute inset-0 rounded-full bg-[#FF6B00]/25 animate-ping-soft" />
+          <span className="relative w-10 h-10 rounded-full bg-[#FF6B00] shadow-[0_8px_18px_-6px_rgba(255,107,0,0.8)] flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-white" />
+          </span>
+        </span>
+      </div>
       {/* Map container - always rendered */}
-      <div ref={mapRef} className="w-full h-full" />
+      <div ref={mapRef} className="relative w-full h-full" />
       
       {/* Loading overlay */}
       {shouldShowLoading && (
-        <div className="absolute inset-0 bg-gray-100 flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-[#F7F1EA] flex items-center justify-center z-10">
           <div className="text-center">
-            <Loader2 className="w-12 h-12 text-brand-deep-blue animate-spin mx-auto mb-4" />
-            <p className="text-sm text-gray-600">Loading map...</p>
+            <Loader2 className="w-7 h-7 text-[#FF6B00] animate-spin mx-auto mb-2" />
+            <p className="text-sm text-[#6B6259]">Loading map…</p>
           </div>
         </div>
       )}

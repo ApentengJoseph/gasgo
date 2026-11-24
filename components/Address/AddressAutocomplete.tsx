@@ -232,16 +232,14 @@ export default function AddressAutocomplete({
   // Fallback if no API key provided
   if (!apiKey) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="relative">
-          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-flame" />
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full pl-10 pr-4 py-3 border ${
-              error ? 'border-status-error' : 'border-gray-300'
-            } rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent resize-none ${className}`}
+            className={`input-field !h-auto py-3.5 pl-11 resize-none ${error ? '!border-[#DC2626]' : ''} ${className}`}
             rows={3}
           />
         </div>
@@ -250,10 +248,10 @@ export default function AddressAutocomplete({
             type="button"
             onClick={handleGetCurrentLocation}
             disabled={gettingLocation}
-            className="flex items-center gap-2 text-sm text-brand-deep-blue hover:text-brand-deep-blue/80 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-cream border border-line text-[0.875rem] font-semibold text-ink hover:bg-cream-deep transition-colors disabled:opacity-50"
           >
-            <Navigation className={`w-4 h-4 ${gettingLocation ? 'animate-spin' : ''}`} />
-            <span>{gettingLocation ? 'Getting location...' : 'Use Current Location'}</span>
+            <Navigation className={`w-4 h-4 text-flame ${gettingLocation ? 'animate-spin' : ''}`} />
+            <span>{gettingLocation ? 'Finding you…' : 'Use my current location'}</span>
           </button>
         )}
         {error && (
@@ -268,16 +266,14 @@ export default function AddressAutocomplete({
 
   if (loadError) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="relative">
-          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-flame" />
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className={`w-full pl-10 pr-4 py-3 border ${
-              error ? 'border-status-error' : 'border-gray-300'
-            } rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent resize-none ${className}`}
+            className={`input-field !h-auto py-3.5 pl-11 resize-none ${error ? '!border-[#DC2626]' : ''} ${className}`}
             rows={3}
           />
         </div>
@@ -286,10 +282,10 @@ export default function AddressAutocomplete({
             type="button"
             onClick={handleGetCurrentLocation}
             disabled={gettingLocation}
-            className="flex items-center gap-2 text-sm text-brand-deep-blue hover:text-brand-deep-blue/80 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-cream border border-line text-[0.875rem] font-semibold text-ink hover:bg-cream-deep transition-colors disabled:opacity-50"
           >
-            <Navigation className={`w-4 h-4 ${gettingLocation ? 'animate-spin' : ''}`} />
-            <span>{gettingLocation ? 'Getting location...' : 'Use Current Location'}</span>
+            <Navigation className={`w-4 h-4 text-flame ${gettingLocation ? 'animate-spin' : ''}`} />
+            <span>{gettingLocation ? 'Finding you…' : 'Use my current location'}</span>
           </button>
         )}
         {error && (
@@ -311,7 +307,7 @@ export default function AddressAutocomplete({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           disabled
-          className={`w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-50 ${className}`}
+          className={`input-field pl-11 bg-cream ${className}`}
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
           <Loader2 className="w-5 h-5 text-gray-400 animate-spin" />
@@ -322,9 +318,9 @@ export default function AddressAutocomplete({
 
   return (
     <>
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="relative">
-          <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-flame" />
           <input
             ref={inputRef}
             type="text"
@@ -373,14 +369,12 @@ export default function AddressAutocomplete({
               }
             }}
             placeholder={placeholder}
-            className={`w-full pl-10 pr-4 py-3 border ${
-              error ? 'border-status-error' : 'border-gray-300'
-            } rounded-xl focus:ring-2 focus:ring-brand-deep-blue focus:border-transparent ${className}`}
+            className={`input-field pl-11 ${error ? '!border-[#DC2626]' : ''} ${className}`}
             autoComplete="off"
           />
           {isLoading && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <Loader2 className="w-5 h-5 text-brand-deep-blue animate-spin" />
+              <Loader2 className="w-5 h-5 text-flame animate-spin" />
             </div>
           )}
         </div>
@@ -389,10 +383,10 @@ export default function AddressAutocomplete({
             type="button"
             onClick={handleGetCurrentLocation}
             disabled={gettingLocation}
-            className="flex items-center gap-2 text-sm text-brand-deep-blue hover:text-brand-deep-blue/80 transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-2 h-10 px-4 rounded-full bg-cream border border-line text-[0.875rem] font-semibold text-ink hover:bg-cream-deep transition-colors disabled:opacity-50"
           >
-            <Navigation className={`w-4 h-4 ${gettingLocation ? 'animate-spin' : ''}`} />
-            <span>{gettingLocation ? 'Getting location...' : 'Use Current Location'}</span>
+            <Navigation className={`w-4 h-4 text-flame ${gettingLocation ? 'animate-spin' : ''}`} />
+            <span>{gettingLocation ? 'Finding you…' : 'Use my current location'}</span>
           </button>
         )}
         {error && (

@@ -1,7 +1,6 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
 
 interface PrimaryButtonProps {
@@ -10,11 +9,28 @@ interface PrimaryButtonProps {
   loading?: boolean;
   fullWidth?: boolean;
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'primary' | 'secondary' | 'energy' | 'safety';
+  /** primary/energy = flame gradient (the main action), secondary/ghost/outline = quiet, dark = ink */
+  variant?: 'primary' | 'secondary' | 'energy' | 'safety' | 'ghost' | 'outline' | 'dark';
   className?: string;
   type?: 'button' | 'submit' | 'reset';
   disabled?: boolean;
 }
+
+const sizes = {
+  sm: 'h-10 px-4 text-[0.875rem] gap-1.5',
+  md: 'h-12 px-5 text-[0.9375rem] gap-2',
+  lg: 'h-14 px-6 text-[1rem] gap-2',
+};
+
+const variants: Record<NonNullable<PrimaryButtonProps['variant']>, string> = {
+  primary:   'btn-primary',
+  energy:    'btn-primary',
+  dark:      'bg-ink text-white font-bold hover:bg-ink-soft',
+  safety:    'bg-[#15803D] text-white font-bold hover:bg-[#126B33]',
+  secondary: 'bg-white text-ink font-semibold border border-line hover:border-[#E0D4C6] hover:bg-cream',
+  ghost:     'bg-cream text-ink font-semibold border border-line hover:bg-cream-deep',
+  outline:   'bg-transparent text-ink font-semibold border-[1.5px] border-ink hover:bg-cream',
+};
 
 export default function PrimaryButton({
   children,
@@ -27,64 +43,18 @@ export default function PrimaryButton({
   type = 'button',
   disabled = false,
 }: PrimaryButtonProps) {
-  const sizeClasses = {
-    sm: 'px-4 py-2 text-sm',
-    md: 'px-6 py-3 text-base',
-    lg: 'px-8 py-4 text-lg',
-  };
-
-  const variantClasses = {
-    primary: 'bg-brand-deep-blue text-white hover:bg-brand-corporate-blue',
-    secondary: 'glass-light text-brand-deep-blue border border-brand-deep-blue/20',
-    energy: 'bg-brand-energy-orange text-white hover:opacity-90',
-    safety: 'bg-brand-safety-green text-white hover:opacity-90',
-  };
-
   return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
-      whileHover={{ scale: disabled ? 1 : 1.02 }}
+    <button
       onClick={onClick}
       disabled={loading || disabled}
       type={type}
-      className={`
-        ${sizeClasses[size]}
-        ${variantClasses[variant]}
-        ${fullWidth ? 'w-full' : ''}
-        relative rounded-xl font-semibold
-        shadow-lg hover:shadow-xl
-        transition-all duration-200
-        flex items-center justify-center gap-2
-        disabled:opacity-50 disabled:cursor-not-allowed
-        overflow-hidden
-        ${className}
-      `}
+      className={`relative rounded-full flex items-center justify-center select-none whitespace-nowrap
+        transition-all duration-200 active:scale-[0.98]
+        disabled:opacity-45 disabled:cursor-not-allowed disabled:shadow-none disabled:active:scale-100
+        ${sizes[size]} ${variants[variant]} ${fullWidth ? 'w-full' : 'inline-flex'} ${className}`}
     >
-      {/* Animated background shine */}
-      {!disabled && (
-        <motion.div
-          className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-          initial={{ x: '-100%' }}
-          whileHover={{ x: '100%' }}
-          transition={{ duration: 0.6 }}
-        />
-      )}
-      
-      {/* Loading spinner */}
-      {loading && (
-        <motion.div
-          initial={{ rotate: 0 }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-        >
-          <Loader2 className="w-5 h-5" />
-        </motion.div>
-      )}
-      
-      <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
-        {children}
-      </span>
-    </motion.button>
+      {loading && <Loader2 className="w-5 h-5 animate-spin" />}
+      <span className={`flex items-center justify-center gap-2 ${loading ? 'opacity-80' : ''}`}>{children}</span>
+    </button>
   );
 }
-

@@ -1,415 +1,480 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Loader2, Navigation2, AlertCircle } from 'lucide-react';
 import { useGoogleMaps } from '@/contexts/GoogleMapsContext';
 
-interface LiveTrackingMapProps {
-  stationPosition: { lat: number; lng: number };
-  riderPosition: { lat: number; lng: number };
-  destinationPosition: { lat: number; lng: number };
-  height?: string;
-  className?: string;
-  onRiderPositionChange?: (position: { lat: number; lng: number }) => void;
+export interface RiderPosition {
+  lat: number;
+  lng: number;
+  heading?: number;
 }
 
-const libraries: ('places' | 'geometry' | 'drawing')[] = ['places', 'geometry', 'drawing'];
+export interface TrackingMapProps {
+  orderId?: string;
+  stationPosition: { lat: number; lng: number; name?: string };
+  riderPosition: RiderPosition;
+  destinationPosition: { lat: number; lng: number; address?: string };
+  orderStatus?: string;
+  height?: string;
+  className?: string;
+  onETAUpdate?: (etaMinutes: number, distanceKm: number) => void;
+}
+
+// Bolt-style dark map theme
+// Light, warm map that matches the app (muted POIs so the route stands out)
+const BOLT_MAP_STYLES: google.maps.MapTypeStyle[] = [
+  { elementType: 'geometry', stylers: [{ color: '#F7F1EA' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#7A6E62' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#E6EBD9' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#FFFFFF' }] },
+  { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#EADFD2' }] },
+  { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#FBE3CC' }] },
+  { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#F3C9A3' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#CFE0E8' }] },
+];
+
+// Build SVG for vehicle marker — tricycle/scooter icon that rotates with heading
+function buildVehicleSVG(heading: number = 0, isMoving: boolean = true): string {
+  const pulse = isMoving
+    ? `<circle cx="24" cy="24" r="22" fill="#FF6B00" fill-opacity="0.25">
+        <animate attributeName="r" values="18;26;18" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="fill-opacity" values="0.3;0;0.3" dur="2s" repeatCount="indefinite"/>
+       </circle>`
+    : '';
+  return encodeURIComponent(`
+    <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+      ${pulse}
+      <circle cx="24" cy="24" r="18" fill="#17130F" stroke="#ffffff" stroke-width="3"/>
+      <g transform="translate(24,24) rotate(${heading}) translate(-24,-24)">
+        <text x="24" y="30" font-size="18" fill="white" text-anchor="middle" dominant-baseline="middle">🛵</text>
+      </g>
+    </svg>
+  `);
+}
+
+function buildStationSVG(): string {
+  return encodeURIComponent(`
+    <svg width="44" height="44" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="22" cy="22" r="19" fill="#2A231C" stroke="#ffffff" stroke-width="3"/>
+      <text x="22" y="28" font-size="18" fill="white" text-anchor="middle">⛽</text>
+    </svg>
+  `);
+}
+
+function buildDestinationSVG(): string {
+  return encodeURIComponent(`
+    <svg width="36" height="50" viewBox="0 0 36 50" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 2C9.163 2 2 9.163 2 18c0 11.25 16 30 16 30S34 29.25 34 18C34 9.163 26.837 2 18 2z"
+            fill="#FF6B00" stroke="#ffffff" stroke-width="2.5"/>
+      <circle cx="18" cy="18" r="7" fill="white"/>
+      <circle cx="18" cy="18" r="4" fill="#FF6B00"/>
+    </svg>
+  `);
+}
+
+// Smoothly interpolate between two LatLng points using requestAnimationFrame
+function animateMarkerTo(
+  marker: google.maps.Marker,
+  targetLat: number,
+  targetLng: number,
+  durationMs: number = 1200,
+) {
+  const startPos = marker.getPosition();
+  if (!startPos) {
+    marker.setPosition({ lat: targetLat, lng: targetLng });
+    return;
+  }
+  const startLat = startPos.lat();
+  const startLng = startPos.lng();
+  const startTime = performance.now();
+
+  function easeInOut(t: number) {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  function step(now: number) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / durationMs, 1);
+    const eased = easeInOut(progress);
+    marker.setPosition({
+      lat: startLat + (targetLat - startLat) * eased,
+      lng: startLng + (targetLng - startLng) * eased,
+    });
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// Calculate compass heading between two points
+function calculateHeading(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
+  const dLng = (to.lng - from.lng) * (Math.PI / 180);
+  const lat1 = from.lat * (Math.PI / 180);
+  const lat2 = to.lat * (Math.PI / 180);
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
 
 export default function LiveTrackingMap({
+  orderId,
   stationPosition,
-  riderPosition: initialRiderPosition,
+  riderPosition,
   destinationPosition,
-  height = '400px',
+  orderStatus = 'on_the_way',
+  height = '420px',
   className = '',
-  onRiderPositionChange,
-}: LiveTrackingMapProps) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<google.maps.Map | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [riderPosition, setRiderPosition] = useState(initialRiderPosition);
-  const riderPositionRef = useRef(initialRiderPosition);
-  const markersRef = useRef<{
-    station?: google.maps.Marker;
-    rider?: google.maps.Marker;
-    destination?: google.maps.Marker;
-  }>({});
-  const routePolylineRef = useRef<google.maps.Polyline | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const hasAnimationStartedRef = useRef(false); // Track if animation has started
-  
-  // Store positions in refs to avoid dependency array issues
-  const stationPositionRef = useRef(stationPosition);
-  const destinationPositionRef = useRef(destinationPosition);
-  const onRiderPositionChangeRef = useRef(onRiderPositionChange);
-  
-  // Update callback ref when it changes
+  onETAUpdate,
+}: TrackingMapProps) {
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const riderMarkerRef = useRef<google.maps.Marker | null>(null);
+  const stationMarkerRef = useRef<google.maps.Marker | null>(null);
+  const destMarkerRef = useRef<google.maps.Marker | null>(null);
+  const directionsRendererRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const etaIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const prevRiderPosRef = useRef<RiderPosition>(riderPosition);
+
+  const [mapReady, setMapReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [etaMinutes, setEtaMinutes] = useState<number | null>(null);
+  const [etaDistance, setEtaDistance] = useState<number | null>(null);
+  const [routeError, setRouteError] = useState(false);
+
+  const { isLoaded, loadError: googleLoadError } = useGoogleMaps();
+
+  const isDelivered = orderStatus === 'delivered' || orderStatus === 'cancelled';
+
+  // ─── Initialize map once Google is loaded ───────────────────────────────────
   useEffect(() => {
-    onRiderPositionChangeRef.current = onRiderPositionChange;
-  }, [onRiderPositionChange]);
-  
-  // Update refs when positions change
-  useEffect(() => {
-    stationPositionRef.current = stationPosition;
-    destinationPositionRef.current = destinationPosition;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stationPosition.lat, stationPosition.lng, destinationPosition.lat, destinationPosition.lng]);
-
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 
-                 process.env.NEXT_PUBLIC_GOOGLE_MAP_API_KEY || 
-                 '';
-
-  const { isLoaded, loadError } = useGoogleMaps();
-
-  // Initialize map (only once)
-  useEffect(() => {
-    // If map already exists, don't re-initialize
-    if (map) {
-      setIsLoading(false);
-      return;
-    }
-
-    // Wait for Google Maps to load
-    if (!isLoaded) {
-      // Keep loading state true while waiting, but set a timeout to prevent infinite loading
-      const timeout = setTimeout(() => {
-        if (!isLoaded && !map) {
-          console.warn('Google Maps taking too long to load');
-          setIsLoading(false);
-        }
-      }, 10000); // 10 second timeout
-      return () => clearTimeout(timeout);
-    }
-
-    // If there's a load error or no API key, stop loading
-    if (loadError || !apiKey) {
-      setIsLoading(false);
-      return;
-    }
-
-    // If map container doesn't exist yet, wait a bit then check again
-    if (!mapRef.current) {
-      // Use a timeout to wait for ref to be available
-      const timeout = setTimeout(() => {
-        if (!mapRef.current && !map) {
-          console.warn('Map container ref not available');
-          setIsLoading(false);
-        }
-      }, 2000); // 2 second timeout
-      return () => clearTimeout(timeout);
-    }
-
-    // Check if Google Maps API is actually available
-    if (typeof window === 'undefined' || !(window as any).google) {
-      // Google Maps not loaded yet, but isLoaded is true, so wait a bit
-      const timeout = setTimeout(() => {
-        if (!(window as any).google && !map) {
-          console.warn('Google Maps API not available after isLoaded=true');
-          setIsLoading(false);
-        }
-      }, 2000); // 2 second timeout
-      return () => clearTimeout(timeout);
-    }
-
-    const mapInstance = new google.maps.Map(mapRef.current, {
-      center: riderPosition,
-      zoom: 15,
-      mapTypeControl: false,
-      streetViewControl: false,
-      fullscreenControl: false,
-      zoomControl: true,
-      styles: [
-        {
-          featureType: 'poi',
-          elementType: 'labels',
-          stylers: [{ visibility: 'off' }],
-        },
-      ],
-    });
-
-    // Create custom icons
-    const stationIcon = {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="20" cy="20" r="18" fill="#F97316" stroke="#fff" stroke-width="3"/>
-          <text x="20" y="26" font-size="20" fill="white" text-anchor="middle">⛽</text>
-        </svg>
-      `),
-      scaledSize: new google.maps.Size(40, 40),
-      anchor: new google.maps.Point(20, 20),
-    };
-
-    const riderIcon = {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-        <svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="25" cy="25" r="22" fill="#0F4C81" stroke="#fff" stroke-width="3"/>
-          <text x="25" y="32" font-size="24" fill="white" text-anchor="middle">🚚</text>
-        </svg>
-      `),
-      scaledSize: new google.maps.Size(50, 50),
-      anchor: new google.maps.Point(25, 25),
-    };
-
-    // User location icon - proper location pin
-    const destinationIcon = {
-      url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
-        <svg width="40" height="50" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 0C9.5 0 1 8.5 1 19c0 14 19 31 19 31s19-17 19-31C39 8.5 30.5 0 20 0z" fill="#0F4C81" stroke="#fff" stroke-width="2"/>
-          <circle cx="20" cy="19" r="8" fill="#fff"/>
-        </svg>
-      `),
-      scaledSize: new google.maps.Size(40, 50),
-      anchor: new google.maps.Point(20, 50),
-    };
-
-    // Get current positions from refs
-    const stationPos = stationPositionRef.current;
-    const destPos = destinationPositionRef.current;
-    
-    // Create markers
-    markersRef.current.station = new google.maps.Marker({
-      position: stationPos,
-      map: mapInstance,
-      icon: stationIcon,
-      title: 'Gas Station',
-      zIndex: 1,
-    });
-
-    markersRef.current.rider = new google.maps.Marker({
-      position: riderPosition,
-      map: mapInstance,
-      icon: riderIcon,
-      title: 'Rider',
-      zIndex: 3,
-      animation: google.maps.Animation.DROP,
-    });
-
-    markersRef.current.destination = new google.maps.Marker({
-      position: destPos,
-      map: mapInstance,
-      icon: destinationIcon,
-      title: 'Your Location',
-      zIndex: 2,
-      animation: google.maps.Animation.DROP,
-    });
-
-    // Draw initial route (will be updated by animation to show full journey)
-    const routePath = new google.maps.Polyline({
-      path: [initialRiderPosition, stationPos, destPos],
-      geodesic: true,
-      strokeColor: '#0F4C81',
-      strokeOpacity: 0.6,
-      strokeWeight: 4,
-      map: mapInstance,
-    });
-
-    routePolylineRef.current = routePath;
-
-    // Fit bounds to show all markers
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend(stationPos);
-    bounds.extend(riderPosition);
-    bounds.extend(destPos);
-    mapInstance.fitBounds(bounds);
+    if (!isLoaded || googleLoadError || !mapContainerRef.current || mapRef.current) return;
 
     try {
-      setMap(mapInstance);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error initializing map:', error);
-      setIsLoading(false);
+      const map = new google.maps.Map(mapContainerRef.current, {
+        center: { lat: riderPosition.lat, lng: riderPosition.lng },
+        zoom: 15,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        zoomControl: true,
+        zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+        gestureHandling: 'greedy',
+        styles: BOLT_MAP_STYLES,
+        clickableIcons: false,
+      });
+      mapRef.current = map;
+
+      // Station marker
+      stationMarkerRef.current = new google.maps.Marker({
+        position: stationPosition,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${buildStationSVG()}`,
+          scaledSize: new google.maps.Size(44, 44),
+          anchor: new google.maps.Point(22, 22),
+        },
+        title: stationPosition.name || 'Gas Station',
+        zIndex: 2,
+      });
+
+      // Station info window
+      const stationInfo = new google.maps.InfoWindow({
+        content: `<div style="font-family:sans-serif;font-size:13px;font-weight:600;color:#1a1a2e;padding:4px 8px">${stationPosition.name || 'Gas Station'}</div>`,
+      });
+      stationMarkerRef.current.addListener('click', () =>
+        stationInfo.open(map, stationMarkerRef.current!),
+      );
+
+      // Destination marker
+      destMarkerRef.current = new google.maps.Marker({
+        position: destinationPosition,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${buildDestinationSVG()}`,
+          scaledSize: new google.maps.Size(36, 50),
+          anchor: new google.maps.Point(18, 50),
+        },
+        title: destinationPosition.address || 'Your Location',
+        zIndex: 3,
+        animation: google.maps.Animation.DROP,
+      });
+
+      // Destination info window
+      const destInfo = new google.maps.InfoWindow({
+        content: `<div style="font-family:sans-serif;font-size:13px;font-weight:600;color:#1a1a2e;padding:4px 8px">${destinationPosition.address || 'Your Location'}</div>`,
+      });
+      destMarkerRef.current.addListener('click', () =>
+        destInfo.open(map, destMarkerRef.current!),
+      );
+
+      // Rider marker
+      riderMarkerRef.current = new google.maps.Marker({
+        position: riderPosition,
+        map,
+        icon: {
+          url: `data:image/svg+xml;charset=UTF-8,${buildVehicleSVG(riderPosition.heading || 0, !isDelivered)}`,
+          scaledSize: new google.maps.Size(48, 48),
+          anchor: new google.maps.Point(24, 24),
+        },
+        title: 'Rider',
+        zIndex: 10,
+        optimized: false, // Required for SVG rotation to work correctly
+      });
+
+      // DirectionsRenderer for road-following route
+      const renderer = new google.maps.DirectionsRenderer({
+        suppressMarkers: true,
+        polylineOptions: {
+          strokeColor: '#FF6B00',
+          strokeWeight: 5,
+          strokeOpacity: 0.9,
+          geodesic: true,
+          icons: [
+            {
+              icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 3, strokeColor: '#FF6B00' },
+              offset: '100%',
+              repeat: '120px',
+            },
+          ],
+        },
+      });
+      renderer.setMap(map);
+      directionsRendererRef.current = renderer;
+
+      setMapReady(true);
+    } catch (err) {
+      console.error('Map init error:', err);
+      setLoadError(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, loadError, apiKey, map, riderPosition]); // Include riderPosition for initial center
+  }, [isLoaded, googleLoadError]);
 
-  // Animate rider movement (Uber/Bolt style) - Two-leg journey: Rider → Station → User Location
+  // ─── Fetch actual road route via DirectionsService ──────────────────────────
+  const fetchRoute = useCallback(async (riderPos: RiderPosition) => {
+    if (!mapRef.current || !directionsRendererRef.current || isDelivered) return;
+
+    const service = new google.maps.DirectionsService();
+
+    // Route: Rider → Station → Customer (two legs)
+    const origin = orderStatus === 'on_the_way' || orderStatus === 'arriving'
+      ? riderPos  // already picked up, go direct to customer
+      : riderPos;
+
+    // If rider is en-route to customer skip station waypoint
+    const waypoints =
+      orderStatus === 'assigned' || orderStatus === 'at_station' || orderStatus === 'collected'
+        ? [{ location: new google.maps.LatLng(stationPosition.lat, stationPosition.lng), stopover: true }]
+        : [];
+
+    try {
+      service.route(
+        {
+          origin: new google.maps.LatLng(origin.lat, origin.lng),
+          destination: new google.maps.LatLng(destinationPosition.lat, destinationPosition.lng),
+          waypoints,
+          travelMode: google.maps.TravelMode.DRIVING,
+          drivingOptions: {
+            departureTime: new Date(),
+            trafficModel: google.maps.TrafficModel.BEST_GUESS,
+          },
+          unitSystem: google.maps.UnitSystem.METRIC,
+        },
+        (result, status) => {
+          if (status === google.maps.DirectionsStatus.OK && result) {
+            directionsRendererRef.current!.setDirections(result);
+
+            // Extract ETA from all legs
+            let totalDurationSec = 0;
+            let totalDistanceM = 0;
+            result.routes[0]?.legs.forEach((leg) => {
+              totalDurationSec += leg.duration?.value || 0;
+              totalDistanceM += leg.distance?.value || 0;
+            });
+            const etaMins = Math.ceil((totalDurationSec * 1.35) / 60); // 1.35× for tricycle
+            const distKm = Math.round((totalDistanceM / 1000) * 10) / 10;
+            setEtaMinutes(etaMins);
+            setEtaDistance(distKm);
+            setRouteError(false);
+            onETAUpdate?.(etaMins, distKm);
+          } else {
+            setRouteError(true);
+          }
+        },
+      );
+    } catch {
+      setRouteError(true);
+    }
+  }, [orderStatus, stationPosition, destinationPosition, isDelivered, onETAUpdate]);
+
+  // ─── Fetch route on map ready + every 60s ──────────────────────────────────
   useEffect(() => {
-    if (!map || !markersRef.current.rider || !apiKey) return;
-    
-    // Prevent animation from restarting if it's already running
-    if (hasAnimationStartedRef.current) return;
-
-    // Get positions from refs (always up-to-date, no dependency issues)
-    const stationPos = stationPositionRef.current;
-    const destPos = destinationPositionRef.current;
-    const initialRiderPos = initialRiderPosition;
-    
-    // Two-leg journey: 
-    // Leg 1: Rider → Station (0 to 0.5 progress)
-    // Leg 2: Station → User Location (0.5 to 1.0 progress)
-    
-    let progress = 0.0; // Start from beginning
-    const speed = 0.0015; // Faster speed to complete animation in reasonable time (~11 seconds at 60fps)
-    let lastNotifyTime = 0;
-    let lastPanTime = 0;
-    const NOTIFY_INTERVAL = 2000; // Only notify parent every 2 seconds
-    const PAN_INTERVAL = 2000; // Pan map every 2 seconds
-    let currentLeg = 1; // 1 = going to station, 2 = going to user location
-    let isAnimating = true;
-
-    const animate = () => {
-      if (!isAnimating) {
-        if (animationRef.current) {
-          cancelAnimationFrame(animationRef.current);
-          animationRef.current = null;
-        }
-        return;
-      }
-      
-      progress += speed;
-      
-      let currentPosition: { lat: number; lng: number };
-      
-      if (progress <= 0.5) {
-        // Leg 1: Rider → Station
-        currentLeg = 1;
-        const legProgress = progress / 0.5; // 0 to 1 for this leg
-        currentPosition = {
-          lat: initialRiderPos.lat + (stationPos.lat - initialRiderPos.lat) * legProgress,
-          lng: initialRiderPos.lng + (stationPos.lng - initialRiderPos.lng) * legProgress,
-        };
-      } else {
-        // Leg 2: Station → User Location
-        currentLeg = 2;
-        const legProgress = (progress - 0.5) / 0.5; // 0 to 1 for this leg
-        currentPosition = {
-          lat: stationPos.lat + (destPos.lat - stationPos.lat) * legProgress,
-          lng: stationPos.lng + (destPos.lng - stationPos.lng) * legProgress,
-        };
-      }
-      
-      // Clamp progress to 1.0
-      if (progress >= 1.0) {
-        progress = 1.0;
-        currentPosition = destPos; // Final position at user location
-        isAnimating = false; // Stop animation when complete
-      }
-
-      // Always update ref (no re-render)
-      riderPositionRef.current = currentPosition;
-      
-      // Always update marker position for smooth animation (doesn't cause re-renders)
-      if (markersRef.current.rider) {
-        markersRef.current.rider.setPosition(currentPosition);
-      }
-      
-      // Only update state and notify parent periodically to avoid infinite loops
-      const now = Date.now();
-      if (now - lastNotifyTime >= NOTIFY_INTERVAL) {
-        setRiderPosition(currentPosition);
-        
-        // Notify parent component of position change (debounced)
-        if (onRiderPositionChangeRef.current) {
-          onRiderPositionChangeRef.current(currentPosition);
-        }
-        
-        lastNotifyTime = now;
-      }
-
-      // Update route polyline to show full route (smoothly)
-      if (routePolylineRef.current) {
-        if (currentLeg === 1) {
-          // Show: Rider → Current Position → Station → User Location
-          routePolylineRef.current.setPath([
-            initialRiderPos,
-            currentPosition,
-            stationPos,
-            destPos,
-          ]);
-        } else {
-          // Show: Rider → Station → Current Position → User Location
-          routePolylineRef.current.setPath([
-            initialRiderPos,
-            stationPos,
-            currentPosition,
-            destPos,
-          ]);
-        }
-      }
-
-      // Center map on rider (smoothly, less frequently)
-      if (map && now - lastPanTime >= PAN_INTERVAL) {
-        map.panTo(currentPosition);
-        lastPanTime = now;
-      }
-
-      // Continue animation if not complete
-      if (isAnimating && progress < 1.0) {
-        animationRef.current = requestAnimationFrame(animate);
-      } else if (progress >= 1.0) {
-        // Ensure we're at final position
-        if (markersRef.current.rider) {
-          markersRef.current.rider.setPosition(destPos);
-        }
-        if (routePolylineRef.current) {
-          routePolylineRef.current.setPath([
-            initialRiderPos,
-            stationPos,
-            destPos,
-          ]);
-        }
-        isAnimating = false;
-      }
-    };
-
-    // Start animation after a small delay to ensure map is ready
-    const startTimeout = setTimeout(() => {
-      if (isAnimating && map && markersRef.current.rider && !hasAnimationStartedRef.current) {
-        hasAnimationStartedRef.current = true;
-        animationRef.current = requestAnimationFrame(animate);
-      }
-    }, 500);
-
+    if (!mapReady) return;
+    fetchRoute(riderPosition);
+    etaIntervalRef.current = setInterval(() => fetchRoute(prevRiderPosRef.current), 60_000);
     return () => {
-      isAnimating = false;
-      hasAnimationStartedRef.current = false; // Reset so animation can restart if component remounts
-      if (startTimeout) clearTimeout(startTimeout);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
+      if (etaIntervalRef.current) clearInterval(etaIntervalRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, apiKey, stationPosition.lat, stationPosition.lng, destinationPosition.lat, destinationPosition.lng, initialRiderPosition.lat, initialRiderPosition.lng]); // Use individual values instead of objects
+  }, [mapReady, fetchRoute]);
 
-  // Fallback if no API key
-  if (!apiKey) {
+  // ─── Update rider marker when position changes (Supabase realtime or prop) ─
+  useEffect(() => {
+    if (!mapReady || !riderMarkerRef.current) return;
+
+    const prev = prevRiderPosRef.current;
+    const heading = calculateHeading(prev, riderPosition);
+    prevRiderPosRef.current = riderPosition;
+
+    // Smooth animation to new position
+    animateMarkerTo(riderMarkerRef.current, riderPosition.lat, riderPosition.lng, 1400);
+
+    // Update rotating icon
+    riderMarkerRef.current.setIcon({
+      url: `data:image/svg+xml;charset=UTF-8,${buildVehicleSVG(riderPosition.heading ?? heading, !isDelivered)}`,
+      scaledSize: new google.maps.Size(48, 48),
+      anchor: new google.maps.Point(24, 24),
+    });
+
+    // Pan map to keep rider in view (only if rider moved significantly)
+    const latDiff = Math.abs(riderPosition.lat - prev.lat);
+    const lngDiff = Math.abs(riderPosition.lng - prev.lng);
+    if (mapRef.current && (latDiff > 0.0003 || lngDiff > 0.0003)) {
+      mapRef.current.panTo({ lat: riderPosition.lat, lng: riderPosition.lng });
+    }
+
+    // Re-fetch route on significant position change
+    if (latDiff > 0.001 || lngDiff > 0.001) {
+      fetchRoute(riderPosition);
+    }
+  }, [riderPosition, mapReady, isDelivered, fetchRoute]);
+
+  // ─── Fit bounds to show all markers once map is ready ──────────────────────
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(riderPosition);
+    bounds.extend(stationPosition);
+    bounds.extend(destinationPosition);
+    mapRef.current.fitBounds(bounds, { top: 60, bottom: 180, left: 40, right: 40 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady]);
+
+  // ─── Delivered state — show green route, hide live tracking ────────────────
+  useEffect(() => {
+    if (!mapReady || !riderMarkerRef.current) return;
+    if (isDelivered) {
+      riderMarkerRef.current.setIcon({
+        url: `data:image/svg+xml;charset=UTF-8,${buildVehicleSVG(0, false)}`,
+        scaledSize: new google.maps.Size(48, 48),
+        anchor: new google.maps.Point(24, 24),
+      });
+      if (etaIntervalRef.current) clearInterval(etaIntervalRef.current);
+    }
+  }, [isDelivered, mapReady]);
+
+  // ─── Recenter button ────────────────────────────────────────────────────────
+  const handleRecenter = () => {
+    if (!mapRef.current) return;
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(riderPosition);
+    bounds.extend(destinationPosition);
+    mapRef.current.fitBounds(bounds, { top: 60, bottom: 200, left: 40, right: 40 });
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
+  if (loadError || googleLoadError) {
     return (
-      <div className={`relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 ${className}`} style={{ height }}>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-gray-600">Map requires Google Maps API key</p>
+      <div
+        className={`relative rounded-2xl overflow-hidden bg-gray-900 flex items-center justify-center ${className}`}
+        style={{ height }}
+      >
+        <div className="text-center text-white p-6">
+          <AlertCircle className="w-10 h-10 mx-auto mb-3 text-red-400" />
+          <p className="text-sm font-medium">Map failed to load</p>
+          <p className="text-xs text-gray-400 mt-1">Check your Google Maps API key</p>
         </div>
       </div>
     );
   }
 
-  if (loadError) {
-    return (
-      <div className={`relative rounded-2xl overflow-hidden border border-gray-200 ${className}`} style={{ height }}>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <p className="text-sm text-gray-600">Map failed to load</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Always render the map container so ref is available
-  // Show loading overlay while Google Maps is loading or map is initializing
   return (
-    <div className={`relative rounded-2xl overflow-hidden ${className}`} style={{ height }}>
-      {/* Map container - always rendered so ref is available */}
-      <div ref={mapRef} className="w-full h-full" />
-      
+    <div
+      className={`relative rounded-2xl overflow-hidden ${className}`}
+      style={{ height }}
+    >
+      {/* Map canvas */}
+      <div ref={mapContainerRef} className="w-full h-full" />
+
       {/* Loading overlay */}
-      {(!isLoaded || isLoading || !map) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-90 z-10">
-          <div className="text-center">
-            <Loader2 className="w-12 h-12 text-brand-deep-blue animate-spin mx-auto mb-4" />
-            <p className="text-sm text-gray-600">Loading live tracking...</p>
-            {!isLoaded && <p className="text-xs text-gray-500 mt-2">Loading Google Maps...</p>}
+      {(!isLoaded || !mapReady) && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#F7F1EA] z-20">
+          <Loader2 className="w-8 h-8 text-[#FF6B00] animate-spin mb-3" />
+          <p className="text-sm text-[#6B6259]">Loading live map…</p>
+        </div>
+      )}
+
+      {/* ETA chip — top center */}
+      {mapReady && etaMinutes !== null && !isDelivered && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-[#17130F] text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg flex items-center gap-2 border border-white/20">
+            <div className="w-2 h-2 rounded-full bg-[#FF6B00] animate-pulse" />
+            {etaMinutes} min away
+            {etaDistance !== null && (
+              <span className="text-white/70 font-normal text-xs">· {etaDistance} km</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Delivered chip */}
+      {mapReady && isDelivered && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-[#FF6B00] text-white text-sm font-bold px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+            ✓ Delivered
+          </div>
+        </div>
+      )}
+
+      {/* Route error */}
+      {mapReady && routeError && !isDelivered && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <div className="bg-amber-500 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-lg">
+            Route unavailable — showing approximate
+          </div>
+        </div>
+      )}
+
+      {/* Recenter button */}
+      {mapReady && (
+        <button
+          onClick={handleRecenter}
+          className="absolute bottom-4 right-4 z-10 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 active:scale-95 transition-all"
+          aria-label="Re-center map"
+        >
+          <Navigation2 className="w-5 h-5 text-[#17130F]" />
+        </button>
+      )}
+
+      {/* Legend */}
+      {mapReady && (
+        <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1.5 bg-white/90 backdrop-blur-sm border border-[#EFE7DE] rounded-xl px-3 py-2 pointer-events-none">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#17130F] border border-white/30" />
+            <span className="text-[#17130F] text-xs font-medium">Rider</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#2A231C] border border-white/30" />
+            <span className="text-[#17130F] text-xs font-medium">Station</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-[#FF6B00] border border-white/30" />
+            <span className="text-[#17130F] text-xs font-medium">You</span>
           </div>
         </div>
       )}
     </div>
   );
 }
-

@@ -26,7 +26,7 @@ export default function NotificationTest() {
       // Show a test notification immediately
       await notificationService.showNotification({
         title: 'Notifications Enabled! 🎉',
-        body: 'You will now receive push notifications from Gaso.',
+        body: 'You will now receive push notifications from GasRefill.',
         tag: 'permission-granted',
       });
     }
