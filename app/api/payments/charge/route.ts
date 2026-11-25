@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { sameOrigin, rateLimited, clientIp, isGhanaPhone } from '@/lib/server/guard';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 const PAYSTACK_FALLBACK_EMAIL = 'adookwesi@gmail.com';
@@ -26,7 +27,13 @@ function normalisePhone(phone: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, email: rawEmail, phone, network } = await request.json();
+    if (!sameOrigin(request)) return NextResponse.json({ error: 'Not allowed.' }, { status: 403 });
+    const { orderId, email: rawEmail, phone, network } = await request.json().catch(() => ({}));
+    // Each attempt sends a MoMo prompt to a phone: limit it so nobody can spam someone's phone.
+    if (typeof phone !== 'string' || !isGhanaPhone(phone)) return NextResponse.json({ error: 'Enter a valid Ghana MoMo number.' }, { status: 400 });
+    if (rateLimited(`charge-ip:${clientIp(request)}`, 15, 60 * 60 * 1000) || rateLimited(`charge-phone:${normalisePhone(phone)}`, 6, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many payment attempts. Please wait a while, or choose cash.' }, { status: 429 });
+    }
     // Use provided email or fall back to the configured Paystack email
     const email = rawEmail?.trim() || PAYSTACK_FALLBACK_EMAIL;
 

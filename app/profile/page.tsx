@@ -10,6 +10,7 @@ import {
   Pencil, Phone, User, Home, Plus, ChevronDown,
 } from 'lucide-react';
 import { PageHeader } from '@/components/UI/PageHeader';
+import { ShareToDevice, RedeemCode } from '@/components/Account/DeviceLink';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import type { Address } from '@/lib/types/database';
@@ -177,6 +178,9 @@ export default function AccountPage() {
         </section>
       )}
 
+      {/* Same account on another device */}
+      {user && <ShareToDevice />}
+
       {/* Shortcuts */}
       <nav className="card overflow-hidden divide-y divide-white/70" aria-label="Account">
         <MenuLink href="/orders" icon={Package} label="My orders" />
@@ -190,9 +194,10 @@ export default function AccountPage() {
       </nav>
 
       {isGuest ? (
-        <p className="text-center text-[0.875rem] text-ink-muted pt-1">
-          Saved an account on another phone? <Link href="/auth/login" className="font-semibold text-flame-deep underline underline-offset-2">Sign in</Link>
-        </p>
+        <div className="text-center pt-1 space-y-2">
+          <RedeemCode compact />
+          <p className="text-[0.8125rem] text-ink-muted">Saved an email account? <Link href="/auth/login" className="font-semibold text-ink underline underline-offset-2">Sign in</Link></p>
+        </div>
       ) : (
         <button onClick={async () => { await signOut(); router.push('/'); }}
           className="w-full h-12 rounded-full btn-ghost inline-flex items-center justify-center gap-2 !text-[#B91C1C]">

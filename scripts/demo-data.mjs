@@ -6,11 +6,13 @@
  *   npm run demo:ride    drive the demo rider: home → station → home, updating live
  *   npm run demo:clean   remove everything this script created
  *
- * Needs .env.local (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) and migration 002.
+ * Needs .env.local (NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) and migrations 002 + 003.
+ * Passwords are random on every seed (printed once) so no known login ever exists in the database.
  * Demo records are marked: emails end in @gasrefill.test, order numbers start with DEMO-.
  */
 import fs from 'fs';
 import path from 'path';
+import { randomBytes } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 // ── env ───────────────────────────────────────────────────────────────
@@ -20,9 +22,10 @@ const env = Object.fromEntries(fs.readFileSync(envFile, 'utf8').split('\n')
   .map(l => [l.slice(0, l.indexOf('=')).trim(), l.slice(l.indexOf('=') + 1).trim().replace(/^"|"$/g, '')]));
 const db = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 
+const PASSWORD = env.DEMO_PASSWORD || `Demo-${randomBytes(9).toString('base64url')}`;
 const DEMO = {
-  customer: { email: 'customer.demo@gasrefill.test', password: 'GasRefill-demo-1', name: 'Akosua Mensah (demo)', phone: '0240000101' },
-  rider:    { email: 'rider.demo@gasrefill.test',    password: 'GasRefill-demo-1', name: 'Kwame Asante (demo)',  phone: '0240000202' },
+  customer: { email: 'customer.demo@gasrefill.test', password: PASSWORD, name: 'Akosua Mensah (demo)', phone: '0240000101' },
+  rider:    { email: 'rider.demo@gasrefill.test',    password: PASSWORD, name: 'Kwame Asante (demo)',  phone: '0240000202' },
 };
 const SAFEKEEPING = 5, BASE = 10, RATE = 1.8;
 
@@ -50,6 +53,8 @@ async function ensureUser({ email, password, name, phone }, role) {
     const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
     if (error) throw new Error(`create ${email}: ${error.message}`);
     user = data.user;
+  } else {
+    await db.auth.admin.updateUserById(user.id, { password });
   }
   const { error } = await db.from('profiles').upsert({ id: user.id, name, phone, role, is_active: true, is_online: role === 'rider' }, { onConflict: 'id' });
   if (error) throw new Error(`profile ${email}: ${error.message}`);
@@ -79,11 +84,16 @@ function buildOrder(n, customerId, station, home, items, extra = {}) {
 }
 
 async function seed() {
-  const check = await db.from('orders').select('items, contact_name, rider_name').limit(1);
-  if (check.error) throw new Error('Run migration 002 first (Supabase → SQL Editor). ' + check.error.message);
+  const check = await db.from('orders').select('items, contact_name, rider_name, rider_earning').limit(1);
+  if (check.error) throw new Error('Run migrations 002 and 003 first (Supabase → SQL Editor). ' + check.error.message);
 
   const customerId = await ensureUser(DEMO.customer, 'customer');
   const riderId = await ensureUser(DEMO.rider, 'rider');
+  const { error: rErr } = await db.from('riders').upsert({
+    id: riderId, status: 'approved', vehicle_type: 'motorbike', vehicle_reg: 'M-24-ER 0001',
+    momo_number: DEMO.rider.phone, momo_network: 'MTN', approved_at: new Date().toISOString(),
+  }, { onConflict: 'id' });
+  if (rErr) throw new Error('rider record: ' + rErr.message);
 
   const { data: rows } = await db.from('stations').select('id, name, lat, lng, station_prices(size_kg, price)');
   const stations = rows.map(s => ({ ...s, prices: Object.fromEntries((s.station_prices || []).map(p => [p.size_kg, Number(p.price)])) }));
@@ -103,7 +113,7 @@ async function seed() {
     // Live: refilling at the station (bulk)
     buildOrder(2, customerId, manbah, HOMES.effiduase, [{ kg: 12, qty: 2 }, { kg: 6, qty: 1 }], {
       ...riderBits, status: 'at_station', confirmed_at: ago(0, 1), assigned_at: ago(0, 0.9), collected_at: ago(0, 0.6), at_station_at: ago(0, 0.2),
-      created_at: ago(0, 1.1), rider_lat: manbah.lat, rider_lng: manbah.lng, payment_method: 'cash', payment_status: 'pending',
+      created_at: ago(0, 1.1), rider_lat: manbah.lat, rider_lng: manbah.lng, payment_method: 'cash', payment_status: 'paid', cash_collected_at: ago(0, 0.6),
     }),
     // Waiting for a rider: two neighbours in Adweso (shows batching on the rider screen)
     buildOrder(3, customerId, goil, HOMES.adweso2, [{ kg: 6, qty: 1 }], { status: 'confirmed', confirmed_at: ago(0, 0.1), created_at: ago(0, 0.15) }),
@@ -114,8 +124,18 @@ async function seed() {
     buildOrder(7, customerId, manbah, HOMES.central, [{ kg: 12, qty: 2 }, { kg: 6, qty: 1 }], { ...riderBits, status: 'delivered', created_at: ago(52), confirmed_at: ago(52), delivered_at: ago(52, -1) }),
     buildOrder(8, customerId, lartey, HOMES.adweso, [{ kg: 6, qty: 1 }], { status: 'cancelled', created_at: ago(40), cancelled_at: ago(40), cancellation_reason: 'Cancelled by customer', payment_status: 'refunded' }),
   ];
-  const { data, error } = await db.from('orders').insert(orders).select('id, order_number, status');
+  // Rider's share is fixed when they accept (75% of pickup & return)
+  for (const o of orders) if (o.rider_id) {
+    o.rider_earning = r2(o.delivery_fee * 0.75);
+    o.platform_fee = r2(o.delivery_fee + o.safekeeping_fee - o.rider_earning);
+  }
+  const { data, error } = await db.from('orders').insert(orders).select('id, order_number, status, rider_earning, created_at');
   if (error) throw new Error('insert orders: ' + error.message);
+
+  // Wallet: earnings for the delivered ones
+  await db.from('rider_ledger').insert(data.filter(o => o.status === 'delivered').map(o => ({
+    rider_id: riderId, order_id: o.id, type: 'earning', amount: o.rider_earning, note: `Order #${o.order_number}`, created_at: o.created_at,
+  })));
 
   await db.from('notifications').insert([
     { user_id: customerId, type: 'assigned', title: 'Rider on the way', message: 'Kwame is coming to pick up your empty cylinder (order #DEMO-001).', data: { orderId: data.find(o => o.order_number === 'DEMO-001').id } },
@@ -127,7 +147,8 @@ async function seed() {
   for (const o of data) console.log(`  ${o.order_number}  ${o.status.padEnd(10)}  /orders/tracking?orderId=${o.id}`);
   console.log(`\nSign in at /auth/login:`);
   console.log(`  customer  ${DEMO.customer.email} / ${DEMO.customer.password}  → My orders`);
-  console.log(`  rider     ${DEMO.rider.email} / ${DEMO.rider.password}  → Rider dashboard`);
+  console.log(`  rider     ${DEMO.rider.email} / ${DEMO.rider.password}  → /rider/login`);
+  console.log('  (passwords are new every seed — run `npm run demo:clean` when you are done)');
   console.log('\nThen run `npm run demo:ride` and open DEMO-001 to watch live tracking.\n');
 }
 
@@ -188,6 +209,8 @@ async function clean({ keepUsers = false } = {}) {
   const { data: demoOrders } = await db.from('orders').select('id').like('order_number', 'DEMO-%');
   const ids = (demoOrders ?? []).map(o => o.id);
   if (ids.length) {
+    await db.from('rider_ledger').delete().in('order_id', ids);
+    await db.from('order_declines').delete().in('order_id', ids);
     await db.from('payments').delete().in('order_id', ids);
     await db.from('ratings').delete().in('order_id', ids);
     await db.from('orders').delete().in('id', ids);
@@ -197,6 +220,9 @@ async function clean({ keepUsers = false } = {}) {
   for (const u of demoUsers) {
     await db.from('notifications').delete().eq('user_id', u.id);
     if (!keepUsers) {
+      await db.from('rider_ledger').delete().eq('rider_id', u.id);
+      await db.from('withdrawals').delete().eq('rider_id', u.id);
+      await db.from('riders').delete().eq('id', u.id);
       await db.from('addresses').delete().eq('user_id', u.id);
       await db.from('profiles').delete().eq('id', u.id);
       await db.auth.admin.deleteUser(u.id);

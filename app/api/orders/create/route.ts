@@ -3,6 +3,11 @@ import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supab
 import { normalizeStation, priceFor, type StationRow } from '@/lib/data/stations';
 import { isWithinServiceArea } from '@/lib/utils/serviceArea';
 import { quote, describeItems, MAX_CYLINDERS_PER_ORDER, type BasketItem } from '@/lib/utils/quote';
+import { randomInt } from 'crypto';
+import { sameOrigin, rateLimited, clientIp, clean } from '@/lib/server/guard';
+
+/** Open (not finished) orders one account may have at once — stops fake orders sending riders around. */
+const MAX_OPEN_ORDERS = 3;
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -15,7 +20,7 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 function generateOrderNumber(): string {
   const ts = Date.now().toString().slice(-8);
-  const rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  const rand = randomInt(0, 1000).toString().padStart(3, '0');
   return `GAS${ts}${rand}`;
 }
 
@@ -26,8 +31,15 @@ function generateOrderNumber(): string {
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { stationId, cylinderSize, items: rawItems, deliveryAddress, deliveryLatitude, deliveryLongitude, deliveryNotes } = body;
+    if (!sameOrigin(request)) return NextResponse.json({ error: 'Not allowed.' }, { status: 403 });
+    if (rateLimited(`order-ip:${clientIp(request)}`, 30, 60 * 60 * 1000)) {
+      return NextResponse.json({ error: 'Too many orders from this network. Please try again later.' }, { status: 429 });
+    }
+    const body = await request.json().catch(() => ({}));
+    const { stationId, cylinderSize, items: rawItems, deliveryNotes } = body;
+    const deliveryAddress = clean(body.deliveryAddress, 300);
+    const deliveryLatitude = Number(body.deliveryLatitude);
+    const deliveryLongitude = Number(body.deliveryLongitude);
 
     // Basket: [{kg, qty}] (bulk) or a single cylinderSize (older clients)
     const items: BasketItem[] = (Array.isArray(rawItems) && rawItems.length
@@ -37,7 +49,8 @@ export async function POST(request: NextRequest) {
      .filter((i: BasketItem) => i.kg > 0 && i.qty > 0);
     const count = items.reduce((n, i) => n + i.qty, 0);
 
-    if (!stationId || !items.length || !deliveryAddress || deliveryLatitude == null || deliveryLongitude == null) {
+    if (typeof stationId !== 'string' || !items.length || items.length > 10 || !deliveryAddress
+        || !Number.isFinite(deliveryLatitude) || !Number.isFinite(deliveryLongitude)) {
       return NextResponse.json({ error: 'Missing order details. Please start again.' }, { status: 400 });
     }
     if (items.some(i => i.kg < 1 || i.kg > 50)) {
@@ -54,13 +67,30 @@ export async function POST(request: NextRequest) {
     const supabase = await createServerSupabaseClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Your session expired. Please refresh and try again.' }, { status: 401 });
+    if (rateLimited(`order-user:${user.id}`, 8, 10 * 60 * 1000)) {
+      return NextResponse.json({ error: 'You’re placing orders too quickly. Please wait a few minutes.' }, { status: 429 });
+    }
 
     const admin = createServiceRoleClient();
-    const [{ data: stationRow }, { data: profile }] = await Promise.all([
-      admin.from('stations').select('id, name, address, lat, lng, station_prices(size_kg, price)').eq('id', stationId).maybeSingle(),
-      admin.from('profiles').select('name, phone').eq('id', user.id).maybeSingle(),
+    const ago = (h: number) => new Date(Date.now() - h * 3600 * 1000).toISOString();
+    const [{ count: open }, { count: unpaid }] = await Promise.all([
+      admin.from('orders').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).not('status', 'in', '(pending,delivered,cancelled)').gte('created_at', ago(24)),
+      admin.from('orders').select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id).eq('status', 'pending').gte('created_at', ago(1)),
     ]);
-    if (!stationRow) return NextResponse.json({ error: 'That station is no longer available. Please pick another.' }, { status: 404 });
+    if ((open ?? 0) >= MAX_OPEN_ORDERS) {
+      return NextResponse.json({ error: `You already have ${MAX_OPEN_ORDERS} orders in progress. Wait for one to finish or cancel one in My orders.` }, { status: 409 });
+    }
+    if ((unpaid ?? 0) >= 5) {
+      return NextResponse.json({ error: 'You have several unpaid orders. Finish paying one in My orders, or try again in an hour.' }, { status: 409 });
+    }
+    const [{ data: stationRow }, { data: profile }] = await Promise.all([
+      admin.from('stations').select('id, name, address, lat, lng, is_active, station_prices(size_kg, price)').eq('id', stationId).maybeSingle(),
+      admin.from('profiles').select('name, phone, is_active').eq('id', user.id).maybeSingle(),
+    ]);
+    if (!stationRow || stationRow.is_active === false) return NextResponse.json({ error: 'That station is no longer available. Please pick another.' }, { status: 404 });
+    if (profile?.is_active === false) return NextResponse.json({ error: 'We can’t take orders from this account. Please WhatsApp GasRefill.' }, { status: 403 });
     if (!profile?.name || !profile?.phone) {
       return NextResponse.json({ error: 'Please add your name and phone number first.' }, { status: 400 });
     }
@@ -85,7 +115,7 @@ export async function POST(request: NextRequest) {
       delivery_address: deliveryAddress,
       delivery_lat: deliveryLatitude,
       delivery_lng: deliveryLongitude,
-      delivery_notes: deliveryNotes || null,
+      delivery_notes: clean(deliveryNotes, 300) || null,
       subtotal: q.gas,
       delivery_fee: q.delivery,
       safekeeping_fee: q.safekeeping,

@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import TopNav from '@/components/Navigation/TopNav';
 import { useOrderHydrated } from '@/lib/store/guestOrder';
+import Analytics from '@/components/Layout/Analytics';
 
 /**
  * Page frame per route:
@@ -13,13 +14,11 @@ import { useOrderHydrated } from '@/lib/store/guestOrder';
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/';
   useOrderHydrated(); // restore an in-progress order saved on this device
+  const analytics = pathname.startsWith('/admin') ? null : <Analytics />;
 
+  // Rider and admin areas have their own layouts (app/rider/layout.tsx, app/admin/layout.tsx)
   if (pathname.startsWith('/rider') || pathname.startsWith('/admin')) {
-    return (
-      <main className="min-h-screen pb-24 pt-2 bg-[var(--surface-bg)]">
-        <div className="max-w-md mx-auto px-4">{children}</div>
-      </main>
-    );
+    return <>{children}{analytics}</>;
   }
 
   if (pathname === '/') {
@@ -27,6 +26,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <>
         <TopNav variant="home" />
         <main className="min-h-screen pb-16 md:pb-0">{children}</main>
+        {analytics}
       </>
     );
   }
@@ -38,6 +38,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main className="min-h-screen pb-32 pt-5 md:pb-20 md:pt-10">
         <div className="max-w-md md:max-w-3xl mx-auto px-4 md:px-6">{children}</div>
       </main>
+      {analytics}
     </>
   );
 }

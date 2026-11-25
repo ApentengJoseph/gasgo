@@ -76,38 +76,35 @@ function buildDestinationSVG(): string {
   `);
 }
 
-// Smoothly interpolate between two LatLng points using requestAnimationFrame
-function animateMarkerTo(
-  marker: google.maps.Marker,
-  targetLat: number,
-  targetLng: number,
-  durationMs: number = 1200,
-) {
+// Glide the marker to a new GPS fix the way ride-hailing apps do: constant speed over
+// roughly the time until the next fix, so the vehicle never stops and jumps.
+// Starting a new glide cancels the previous one (it continues from where the pin is now).
+const glides = new WeakMap<google.maps.Marker, number>();
+function animateMarkerTo(marker: google.maps.Marker, targetLat: number, targetLng: number, durationMs: number) {
+  const prevFrame = glides.get(marker);
+  if (prevFrame) cancelAnimationFrame(prevFrame);
   const startPos = marker.getPosition();
-  if (!startPos) {
+  if (!startPos || durationMs <= 0 || document.hidden) {
     marker.setPosition({ lat: targetLat, lng: targetLng });
     return;
   }
   const startLat = startPos.lat();
   const startLng = startPos.lng();
   const startTime = performance.now();
-
-  function easeInOut(t: number) {
-    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-  }
-
-  function step(now: number) {
-    const elapsed = now - startTime;
-    const progress = Math.min(elapsed / durationMs, 1);
-    const eased = easeInOut(progress);
-    marker.setPosition({
-      lat: startLat + (targetLat - startLat) * eased,
-      lng: startLng + (targetLng - startLng) * eased,
-    });
-    if (progress < 1) requestAnimationFrame(step);
-  }
-  requestAnimationFrame(step);
+  const step = (now: number) => {
+    const t = Math.min((now - startTime) / durationMs, 1);
+    marker.setPosition({ lat: startLat + (targetLat - startLat) * t, lng: startLng + (targetLng - startLng) * t });
+    if (t < 1) glides.set(marker, requestAnimationFrame(step));
+    else glides.delete(marker);
+  };
+  glides.set(marker, requestAnimationFrame(step));
 }
+
+const metresBetween = (a: { lat: number; lng: number }, b: { lat: number; lng: number }) => {
+  const R = 6371000, r = (d: number) => (d * Math.PI) / 180;
+  const x = Math.sin(r(b.lat - a.lat) / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(r(b.lng - a.lng) / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+};
 
 // Calculate compass heading between two points
 function calculateHeading(from: { lat: number; lng: number }, to: { lat: number; lng: number }): number {
@@ -320,33 +317,43 @@ export default function LiveTrackingMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, fetchRoute]);
 
-  // ─── Update rider marker when position changes (Supabase realtime or prop) ─
+  // ─── Update rider marker when a new GPS fix arrives (Supabase realtime or prop) ─
+  const lastFixAtRef = useRef<number>(0);
+  const lastHeadingRef = useRef<number>(riderPosition.heading ?? 0);
+  const lastRouteAtRef = useRef<number>(0);
   useEffect(() => {
     if (!mapReady || !riderMarkerRef.current) return;
 
     const prev = prevRiderPosRef.current;
-    const heading = calculateHeading(prev, riderPosition);
+    const moved = metresBetween(prev, riderPosition);
+    // Same fix re-sent (e.g. the page re-rendered): nothing to do.
+    if (moved < 0.5 && lastFixAtRef.current) return;
     prevRiderPosRef.current = riderPosition;
+    const now = performance.now();
+    const gap = lastFixAtRef.current ? now - lastFixAtRef.current : 0;
+    lastFixAtRef.current = now;
 
-    // Smooth animation to new position
-    animateMarkerTo(riderMarkerRef.current, riderPosition.lat, riderPosition.lng, 1400);
+    // Glide over the real gap between fixes (riders send every ~4 s); snap on big jumps.
+    const duration = moved > 2000 || !gap ? 0 : Math.min(Math.max(gap * 0.95, 600), 6000);
+    animateMarkerTo(riderMarkerRef.current, riderPosition.lat, riderPosition.lng, duration);
 
-    // Update rotating icon
+    // Only turn the vehicle when it actually moved (no spinning while parked at the station).
+    if (moved > 5) lastHeadingRef.current = riderPosition.heading ?? calculateHeading(prev, riderPosition);
     riderMarkerRef.current.setIcon({
-      url: `data:image/svg+xml;charset=UTF-8,${buildVehicleSVG(riderPosition.heading ?? heading, !isDelivered)}`,
+      url: `data:image/svg+xml;charset=UTF-8,${buildVehicleSVG(lastHeadingRef.current, !isDelivered)}`,
       scaledSize: new google.maps.Size(48, 48),
       anchor: new google.maps.Point(24, 24),
     });
 
-    // Pan map to keep rider in view (only if rider moved significantly)
-    const latDiff = Math.abs(riderPosition.lat - prev.lat);
-    const lngDiff = Math.abs(riderPosition.lng - prev.lng);
-    if (mapRef.current && (latDiff > 0.0003 || lngDiff > 0.0003)) {
+    // Follow the rider only when they leave the visible area (don't fight the user's panning).
+    const bounds = mapRef.current?.getBounds();
+    if (mapRef.current && bounds && !bounds.contains(riderPosition)) {
       mapRef.current.panTo({ lat: riderPosition.lat, lng: riderPosition.lng });
     }
 
-    // Re-fetch route on significant position change
-    if (latDiff > 0.001 || lngDiff > 0.001) {
+    // Refresh the route (and ETA) when the rider has moved on, at most every 20 s.
+    if (moved > 100 && Date.now() - lastRouteAtRef.current > 20000) {
+      lastRouteAtRef.current = Date.now();
       fetchRoute(riderPosition);
     }
   }, [riderPosition, mapReady, isDelivered, fetchRoute]);

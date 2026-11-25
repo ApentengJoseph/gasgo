@@ -28,7 +28,7 @@ export default function OrderGasPage() {
   const [basket, setBasket] = useState<BasketItem[]>([]);
   const [customKg, setCustomKg] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [sort, setSort] = useState<Sort>('price');
+  const [sort, setSort] = useState<Sort>('distance');
   const [view, setView] = useState<'list' | 'map'>('list');
   const [userLoc, setUserLoc] = useState<{ lat: number; lng: number } | null>(null);
   const [locApprox, setLocApprox] = useState(false);
@@ -236,7 +236,7 @@ export default function OrderGasPage() {
         </div>
 
         <div className="glass !rounded-full inline-flex p-1 mb-3">
-          {(['price', 'distance'] as Sort[]).map(s => (
+          {(['distance', 'price'] as Sort[]).map(s => (
             <button key={s} onClick={() => setSort(s)}
               className={`h-8 px-3.5 rounded-full text-[0.8125rem] font-semibold transition-all ${sort === s ? 'bg-ink text-white shadow-[0_4px_10px_-4px_rgba(23,19,15,0.6)]' : 'text-ink-muted'}`}>
               {s === 'price' ? 'Cheapest' : 'Nearest'}

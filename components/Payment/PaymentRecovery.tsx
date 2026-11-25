@@ -5,12 +5,13 @@ import toast from 'react-hot-toast';
 import { Smartphone, Banknote, Loader2, Clock } from 'lucide-react';
 import MoMoSheet from '@/components/Payment/MoMoSheet';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { track } from '@/components/Layout/Analytics';
 
 /**
  * Shown for an order that is still waiting for payment (e.g. the MoMo prompt
  * was missed or the page was closed). Checks Paystack in the background so a
  * late approval confirms the order by itself, and lets the customer try MoMo
- * again or switch to cash on delivery.
+ * again or switch to cash at pickup.
  */
 export default function PaymentRecovery({ orderId, total, phone, onConfirmed }: {
   orderId: string;
@@ -40,7 +41,7 @@ export default function PaymentRecovery({ orderId, total, phone, onConfirmed }: 
     const d = await res.json().catch(() => ({}));
     setSwitching(false);
     if (!res.ok) { toast.error(d.error || 'Could not switch to cash. Please try again.'); return; }
-    toast.success('Done! Pay the rider in cash.');
+    toast.success('Done! Pay the rider in cash when they pick up your cylinder.');
     onConfirmed();
   };
 
@@ -56,7 +57,7 @@ export default function PaymentRecovery({ orderId, total, phone, onConfirmed }: 
         </div>
       </div>
       <div className="mt-4 grid grid-cols-2 gap-2.5">
-        <button onClick={() => setSheet(true)} className="h-12 rounded-full btn-primary text-[0.9375rem] inline-flex items-center justify-center gap-2">
+        <button onClick={() => { track('payment_retry'); setSheet(true); }} className="h-12 rounded-full btn-primary text-[0.9375rem] inline-flex items-center justify-center gap-2">
           <Smartphone className="w-4 h-4" /> Pay with MoMo
         </button>
         <button onClick={payCash} disabled={switching} className="h-12 rounded-full btn-ghost text-[0.9375rem] inline-flex items-center justify-center gap-2 disabled:opacity-50">

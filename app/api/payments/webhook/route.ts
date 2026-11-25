@@ -1,50 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { confirmPayment } from '@/lib/payments/confirm';
+import { createServiceRoleClient } from '@/lib/supabase/server';
+import { payoutSucceeded, payoutReturned } from '@/lib/server/payouts';
 
+/**
+ * Paystack webhook. Every event is verified with the HMAC-SHA512 signature
+ * (constant-time compare) before anything happens, and payments are then
+ * re-verified with Paystack's API inside confirmPayment(), never trusted from
+ * the webhook body alone. Always answers 200 so Paystack doesn't retry-storm.
+ */
 export async function POST(request: NextRequest) {
-  try {
-    const rawBody = await request.arrayBuffer();
-    const rawBodyStr = Buffer.from(rawBody).toString('utf8');
-    const signature = request.headers.get('x-paystack-signature') || '';
+  const raw = Buffer.from(await request.arrayBuffer());
+  const secret = process.env.PAYSTACK_SECRET_KEY;
+  if (!secret) return NextResponse.json({ received: true });
 
-    const secretKey = process.env.PAYSTACK_SECRET_KEY;
-    if (!secretKey) {
-      console.error('[webhook] PAYSTACK_SECRET_KEY not set');
-      return NextResponse.json({ received: true }); // Always 200 to Paystack
-    }
-
-    // Verify HMAC-SHA512 signature
-    const expectedSig = crypto
-      .createHmac('sha512', secretKey)
-      .update(rawBodyStr)
-      .digest('hex');
-
-    if (expectedSig !== signature) {
-      console.warn('[webhook] Invalid signature — ignoring event');
-      return NextResponse.json({ received: true }); // Still 200 — don't reveal signature mismatch
-    }
-
-    const event = JSON.parse(rawBodyStr);
-
-    if (event.event === 'charge.success') {
-      const reference = event.data?.reference;
-      if (reference) {
-        // Delegate to verify endpoint logic inline
-        const verifyRes = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payments/verify`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reference }),
-        });
-        if (!verifyRes.ok) {
-          console.error('[webhook] Verification failed for', reference);
-        }
-      }
-    }
-
-    return NextResponse.json({ received: true });
-  } catch (err: any) {
-    console.error('[webhook] Error:', err);
-    // Always return 200 to prevent Paystack retry storms
+  const expected = crypto.createHmac('sha512', secret).update(raw).digest();
+  const given = Buffer.from(request.headers.get('x-paystack-signature') || '', 'hex');
+  if (given.length !== expected.length || !crypto.timingSafeEqual(given, expected)) {
+    console.warn('[webhook] bad signature');
     return NextResponse.json({ received: true });
   }
+
+  try {
+    const event = JSON.parse(raw.toString('utf8'));
+    const ref: string | undefined = event?.data?.reference;
+
+    if (event.event === 'charge.success' && ref) {
+      await confirmPayment(ref);
+    }
+
+    // Rider withdrawals paid out by Paystack Transfers (atomic: each outcome applies once)
+    if ((event.event === 'transfer.success' || event.event === 'transfer.failed' || event.event === 'transfer.reversed') && ref) {
+      const admin = createServiceRoleClient();
+      const { data: w } = await admin.from('withdrawals').select('id, rider_id, amount, status, reference').eq('reference', ref).maybeSingle();
+      if (w) {
+        if (event.event === 'transfer.success') await payoutSucceeded(admin, w);
+        else await payoutReturned(admin, w, 'failed', event.data?.reason || (event.event === 'transfer.reversed' ? 'Transfer reversed' : 'Transfer failed'));
+      }
+    }
+  } catch (err) {
+    console.error('[webhook]', err);
+  }
+  return NextResponse.json({ received: true });
 }

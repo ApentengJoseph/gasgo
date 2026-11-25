@@ -5,7 +5,7 @@ export const metadata = { title: 'Credits — GasRefill' };
 const photos = [
   { what: 'Boy carrying a gas cylinder (homepage)', who: 'Mitchel Onwuchuruba', where: 'Pexels', licence: 'Pexels License' },
   { what: 'Woman working in an office (homepage)', who: 'Edmond Dantès', where: 'Pexels', licence: 'Pexels License' },
-  { what: 'Rider transporting gas cylinders (homepage)', who: 'Subhojit Paul', where: 'Pexels', licence: 'Pexels License' },
+  { what: 'Delivery worker with gas cylinders (homepage)', who: 'Generated with Canva AI', where: 'Canva', licence: 'Canva content licence' },
   { what: '3 kg and 25 kg cylinders', who: 'thenwiaka', where: 'Pexels', licence: 'Pexels License' },
   { what: '6 kg table-top cylinder', who: 'ishahidsultan', where: 'Pexels', licence: 'Pexels License' },
   { what: '12 kg composite cylinder (cropped)', who: 'Aburi Composites', where: 'Wikimedia Commons', licence: 'CC BY-SA 4.0' },

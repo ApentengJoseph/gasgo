@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID, randomBytes } from 'crypto';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { GUEST_EMAIL_DOMAIN } from '@/lib/utils/constants';
+import { sameOrigin } from '@/lib/server/guard';
 
 /**
  * POST /api/auth/guest
@@ -21,6 +22,7 @@ function allowed(ip: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!sameOrigin(req)) return NextResponse.json({ error: 'Not allowed.' }, { status: 403 });
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'local';
   if (!allowed(ip)) return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 });
 

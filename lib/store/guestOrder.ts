@@ -121,8 +121,10 @@ export const useGuestOrder = create<GuestOrderStore>()(
 
 /** Loads the saved order from localStorage once; returns true when it's ready to read. */
 export function useOrderHydrated(): boolean {
-  // On the server there's no localStorage, so the persist API isn't available yet.
-  const [hydrated, setHydrated] = useState(() => useGuestOrder.persist?.hasHydrated?.() ?? false);
+  // Always start false and flip in an effect. While React is still hydrating a page it
+  // reads the store's *initial* (empty) state, so reporting "hydrated" during that first
+  // render made pages think the basket was empty and redirect (e.g. a refresh on /order).
+  const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
     const p = useGuestOrder.persist;
     if (!p) { setHydrated(true); return; }

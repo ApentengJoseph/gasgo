@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { createServiceRoleClient } from '@/lib/supabase/server';
+import { sessionUser, sameOrigin, rateLimited, clientIp } from '@/lib/server/guard';
 
 const PAYSTACK_BASE = 'https://api.paystack.co';
 
@@ -14,11 +16,18 @@ const CHANNEL_MAP: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
-    const { orderId, email, amount, channel = 'mtn' } = await request.json();
-
-    if (!orderId || !email || !amount) {
+    if (!sameOrigin(request)) return NextResponse.json({ error: 'Not allowed.' }, { status: 403 });
+    if (rateLimited(`init:${clientIp(request)}`, 20, 60 * 60 * 1000)) return NextResponse.json({ error: 'Too many attempts. Please wait a while.' }, { status: 429 });
+    const { orderId, email, channel = 'mtn' } = await request.json().catch(() => ({}));
+    if (!orderId || !email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+    // Amount and ownership always come from the database, never from the browser
+    const user = await sessionUser();
+    const { data: order } = await createServiceRoleClient().from('orders').select('total, user_id, status').eq('id', orderId).maybeSingle();
+    if (!user || !order || order.user_id !== user.id) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    if (order.status !== 'pending') return NextResponse.json({ error: 'This order is already paid or confirmed.' }, { status: 400 });
+    const amount = Number(order.total);
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
@@ -56,7 +65,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Record pending payment in Supabase
-    const { createServiceRoleClient } = await import('@/lib/supabase/server');
     const supabase = createServiceRoleClient();
     await supabase.from('payments').upsert(
       { order_id: orderId, reference, amount: Number(amount), status: 'pending', payment_method: 'paystack', channel: paystackChannel },

@@ -1,233 +1,53 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import GlassCard from '@/components/Cards/GlassCard';
-import { 
-  Users, ArrowLeft, Search, 
-  UserCheck, Truck, Award, 
-  MapPin, Phone, CheckCircle, XCircle, Plus
-} from 'lucide-react';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { Bike, Truck, ChevronRight } from 'lucide-react';
+import { useAdmin, money, ago, PageHead, Tabs, Loading, ErrorNote, Empty } from '@/components/Admin/ui';
 
-// Mock riders data
-const riders = [
-  {
-    id: '1',
-    name: 'John Doe',
-    phone: '+233 XX XXX XXXX',
-    status: 'online' as const,
-    totalDeliveries: 245,
-    rating: 4.8,
-    earnings: 12450.50,
-    location: 'East Legon, Accra',
-    activeOrders: 2,
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    phone: '+233 XX XXX XXXX',
-    status: 'online' as const,
-    totalDeliveries: 189,
-    rating: 4.9,
-    earnings: 9875.25,
-    location: 'Dansoman, Accra',
-    activeOrders: 1,
-  },
-  {
-    id: '3',
-    name: 'Kwame Asante',
-    phone: '+233 XX XXX XXXX',
-    status: 'offline' as const,
-    totalDeliveries: 156,
-    rating: 4.7,
-    earnings: 8234.75,
-    location: 'Tema, Accra',
-    activeOrders: 0,
-  },
-];
+type R = { id: string; status: string; vehicle: string; reg: string; created_at: string; name: string; phone: string; online: boolean; balance: number; delivered: number; active: number };
+type View = 'pending' | 'approved' | 'suspended' | 'rejected';
 
 export default function AdminRidersPage() {
-  const router = useRouter();
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const filteredRiders = riders.filter(rider =>
-    rider.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    rider.phone.includes(searchQuery) ||
-    rider.location.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const stats = {
-    total: riders.length,
-    online: riders.filter(r => r.status === 'online').length,
-    offline: riders.filter(r => r.status === 'offline').length,
-    active: riders.filter(r => r.activeOrders > 0).length,
-  };
+  const [view, setView] = useState<View>('approved');
+  const { data, error, loading, reload } = useAdmin<{ riders: R[]; counts: Record<View, number> }>(`/api/admin/riders?status=${view}`, 30000);
+  const c = data?.counts;
 
   return (
-    <div className="space-y-6 py-6 pb-24">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex items-center justify-between gap-4"
-      >
-        <div className="flex items-center gap-4 flex-1">
-          <button
-            onClick={() => router.back()}
-            className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
-          </button>
-          <div className="flex-1">
-            <h1 className="text-title-lg font-bold text-gray-900">Manage Riders</h1>
-            <p className="text-sm text-gray-500">View and manage delivery riders</p>
-          </div>
-        </div>
-        <button
-          onClick={() => router.push('/admin/riders/new')}
-          className="px-4 py-2 bg-brand-deep-blue text-white hover:bg-brand-corporate-blue active:bg-brand-deep-blue/90 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg text-sm"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
-      </motion.div>
-
-      {/* Stats Cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-        className="grid grid-cols-2 gap-4"
-      >
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-brand-deep-blue/10 rounded-xl flex items-center justify-center">
-              <Users className="w-5 h-5 text-brand-deep-blue" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Total Riders</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-brand-safety-green/10 rounded-xl flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-brand-safety-green" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Online</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.online}</p>
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-gray-300/10 rounded-xl flex items-center justify-center">
-              <XCircle className="w-5 h-5 text-gray-400" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Offline</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.offline}</p>
-        </GlassCard>
-
-        <GlassCard className="p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="w-10 h-10 bg-brand-energy-orange/10 rounded-xl flex items-center justify-center">
-              <Truck className="w-5 h-5 text-brand-energy-orange" />
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 mb-1">Active</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.active}</p>
-        </GlassCard>
-      </motion.div>
-
-      {/* Search */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-      >
-        <GlassCard className="p-4">
-          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-            <Search className="w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search riders..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none text-sm"
-            />
-          </div>
-        </GlassCard>
-      </motion.div>
-
-      {/* Riders List */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
-        className="space-y-3"
-      >
-        {filteredRiders.map((rider, index) => (
-          <motion.div
-            key={rider.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3 + index * 0.05 }}
-          >
-            <GlassCard 
-              className="p-4 cursor-pointer hover:shadow-lg transition-shadow"
-              onClick={() => router.push(`/admin/riders/${rider.id}`)}
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-brand-deep-blue to-brand-corporate-blue rounded-xl flex items-center justify-center">
-                    <span className="text-white text-lg font-bold">
-                      {rider.name.split(' ').map(n => n[0]).join('')}
+    <>
+      <PageHead title="Riders" sub={c ? `${c.approved} approved · ${c.pending} waiting for approval` : undefined} />
+      <Tabs<View> value={view} onChange={setView} items={[
+        { id: 'approved', label: 'Approved' }, { id: 'pending', label: 'Applications', count: c?.pending },
+        { id: 'suspended', label: 'Paused' }, { id: 'rejected', label: 'Not approved' },
+      ]} />
+      {error && <ErrorNote text={error} retry={reload} />}
+      {loading && !data ? <Loading /> : data && (data.riders.length === 0 ? (
+        <Empty text={view === 'pending' ? 'No new applications. Riders apply at /rider/apply.' : 'No riders here.'} />
+      ) : (
+        <ul className="grid md:grid-cols-2 gap-3">
+          {data.riders.map(r => {
+            const Icon = r.vehicle === 'tricycle' ? Truck : Bike;
+            return (
+              <li key={r.id}>
+                <Link href={`/admin/riders/${r.id}`} className="flex items-center gap-3 rounded-3xl bg-white border border-line p-4 hover:shadow-md transition-shadow">
+                  <span className="relative w-12 h-12 rounded-2xl bg-cream flex items-center justify-center text-ink"><Icon className="w-5 h-5" />
+                    {r.online && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#16A34A] ring-2 ring-white" title="Online" />}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <b className="block text-ink truncate">{r.name}</b>
+                    <span className="block text-[0.8125rem] text-ink-muted truncate">{r.phone} · {r.reg}</span>
+                    <span className="block text-[0.75rem] text-ink-faint">
+                      {view === 'pending' ? `Applied ${ago(r.created_at)}` : `${r.delivered} delivered${r.active ? ` · ${r.active} on now` : ''}`}
                     </span>
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                    rider.status === 'online' ? 'bg-brand-safety-green' : 'bg-gray-400'
-                  }`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-gray-900 truncate">{rider.name}</h3>
-                    <div className="flex items-center gap-1 px-2 py-0.5 bg-brand-energy-orange/10 rounded-lg">
-                      <Award className="w-3 h-3 text-brand-energy-orange" />
-                      <span className="text-xs font-semibold text-brand-energy-orange">{rider.rating}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Phone className="w-4 h-4" />
-                      <span className="truncate">{rider.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <MapPin className="w-4 h-4" />
-                      <span className="truncate">{rider.location}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-gray-200">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Deliveries</p>
-                  <p className="text-lg font-bold text-gray-900">{rider.totalDeliveries}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Earnings</p>
-                  <p className="text-lg font-bold text-brand-safety-green">GH₵{rider.earnings.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Active</p>
-                  <p className="text-lg font-bold text-brand-energy-orange">{rider.activeOrders}</p>
-                </div>
-              </div>
-            </GlassCard>
-          </motion.div>
-        ))}
-      </motion.div>
-    </div>
+                  </span>
+                  {view !== 'pending' && <span className={`text-right font-bold tabular-nums text-[0.9375rem] ${r.balance < 0 ? 'text-[#B91C1C]' : 'text-ink'}`}>{money(r.balance)}<span className="block text-[0.6875rem] font-medium text-ink-faint">wallet</span></span>}
+                  <ChevronRight className="w-4 h-4 text-ink-faint" />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      ))}
+    </>
   );
 }

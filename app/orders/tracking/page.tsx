@@ -11,10 +11,14 @@ import LiveTrackingMap from '@/components/Map/LiveTrackingMap';
 import RatingModal from '@/components/Rating/RatingModal';
 import InfoTip from '@/components/UI/InfoTip';
 import PaymentRecovery from '@/components/Payment/PaymentRecovery';
+import OrderActions from '@/components/Order/OrderActions';
 import { createClient } from '@/lib/supabase/client';
 import type { Order } from '@/lib/types/database';
 
-type TrackedOrder = Order & { rider_name?: string | null; rider_phone?: string | null };
+type TrackedOrder = Order & {
+  rider_name?: string | null; rider_phone?: string | null;
+  cash_collected_at?: string | null; refill_photo_path?: string | null; refund_status?: string | null;
+};
 
 const DEMO_RIDER = process.env.NEXT_PUBLIC_DEMO_AUTO_RIDER === 'true';
 
@@ -250,6 +254,10 @@ function Tracking() {
           </section>
         )}
 
+        {order.refill_photo_path && <RefillPhoto orderId={order.id} path={order.refill_photo_path} />}
+
+        {!cancelled && !delivered && <OrderActions order={order} onChanged={load} />}
+
         {/* Details (collapsed by default) */}
         <section className="card overflow-hidden">
           <button onClick={() => setShowDetails(d => !d)} aria-expanded={showDetails} className="w-full flex items-center gap-3 p-4 text-left">
@@ -259,7 +267,7 @@ function Tracking() {
                 {cylinders === 1 ? `${order.cylinder_size} kg cylinder` : `${cylinders} cylinders`} · {order.station_name}
               </span>
               <span className="block text-[0.8125rem] text-ink-muted">
-                {money(order.total)} · {order.payment_method === 'cash' ? 'Cash on delivery' : order.payment_status === 'paid' ? 'Paid with MoMo' : 'Payment pending'}
+                {money(order.total)} · {order.payment_method === 'cash' ? (order.cash_collected_at ? 'Paid in cash' : 'Cash at pickup') : order.payment_status === 'paid' ? 'Paid with MoMo' : 'Payment pending'}
               </span>
             </span>
             <ChevronDown className={`w-5 h-5 text-ink-faint transition-transform ${showDetails ? 'rotate-180' : ''}`} />
@@ -286,7 +294,7 @@ function Tracking() {
                 <div className="flex justify-between pt-2 border-t border-dashed border-line font-bold text-ink text-[1rem]"><dt>Total</dt><dd className="tabular-nums">{money(order.total)}</dd></div>
               </dl>
               <p className="inline-flex items-center gap-1.5 text-[0.8125rem] text-ink-muted">
-                {order.payment_method === 'cash' ? <><Banknote className="w-4 h-4" /> Pay the rider in cash when your gas is back</> : <><Smartphone className="w-4 h-4" /> Mobile Money</>}
+                {order.payment_method === 'cash' ? <><Banknote className="w-4 h-4" /> {order.cash_collected_at ? 'Cash paid at pickup' : 'Pay the rider in cash when they pick up your cylinder'}</> : <><Smartphone className="w-4 h-4" /> Mobile Money</>}
               </p>
             </div>
           )}
@@ -313,5 +321,36 @@ export default function TrackingPage() {
     <Suspense fallback={<div className="flex items-center justify-center min-h-[50vh]"><Loader2 className="w-7 h-7 text-flame animate-spin" /></div>}>
       <Tracking />
     </Suspense>
+  );
+}
+
+/** The optional photo the rider took of the full cylinder at the station (private, short-lived link). */
+function RefillPhoto({ orderId, path }: { orderId: string; path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/orders/${orderId}/photo`).then(r => r.ok ? r.json() : null).then(d => { if (alive && d?.url) setUrl(d.url); }).catch(() => {});
+    return () => { alive = false; };
+  }, [orderId, path]);
+  if (!url) return null;
+  return (
+    <section className="card p-3 flex items-center gap-3">
+      <button onClick={() => setOpen(true)} className="shrink-0 rounded-2xl overflow-hidden w-16 h-16 bg-cream" aria-label="View refill photo">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={url} alt="Your refilled cylinder" className="w-full h-full object-cover" />
+      </button>
+      <div className="min-w-0">
+        <p className="font-semibold text-ink">Refilled at the station</p>
+        <p className="text-[0.8125rem] text-ink-muted">Your rider took a photo of your full cylinder.</p>
+      </div>
+      {open && (
+        <div role="dialog" aria-modal="true" aria-label="Refill photo" onClick={() => setOpen(false)}
+          className="fixed inset-0 z-[80] bg-black/85 flex items-center justify-center p-4 animate-fade-in">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt="Your refilled cylinder" className="max-h-[85vh] max-w-full rounded-2xl" />
+        </div>
+      )}
+    </section>
   );
 }

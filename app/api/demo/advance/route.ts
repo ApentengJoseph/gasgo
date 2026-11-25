@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, createServiceRoleClient } from '@/lib/supabase/server';
+import { splitFees } from '@/lib/orders/rules';
 
 /**
  * POST /api/demo/advance  { orderId }
@@ -54,11 +55,17 @@ async function demoRiderId(admin: ReturnType<typeof createServiceRoleClient>) {
     { id: user.id, name: DEMO_RIDER.name, phone: DEMO_RIDER.phone, role: 'rider', is_active: true, is_online: true },
     { onConflict: 'id' },
   );
+  // An approved rider record, like a real rider (ignored if migration 003 hasn't run yet)
+  await admin.from('riders').upsert(
+    { id: user.id, status: 'approved', vehicle_type: 'motorbike', vehicle_reg: 'M-24-ER 0001', momo_number: DEMO_RIDER.phone, momo_network: 'MTN', approved_at: new Date().toISOString() },
+    { onConflict: 'id', ignoreDuplicates: true },
+  );
   return user.id;
 }
 
 export async function POST(req: NextRequest) {
-  if (process.env.NEXT_PUBLIC_DEMO_AUTO_RIDER !== 'true') {
+  // Never on the live site, even if the flag is set there by mistake.
+  if (process.env.NEXT_PUBLIC_DEMO_AUTO_RIDER !== 'true' || process.env.VERCEL_ENV === 'production') {
     return NextResponse.json({ error: 'Demo rider is off' }, { status: 404 });
   }
   const { orderId } = await req.json().catch(() => ({}));
@@ -80,9 +87,11 @@ export async function POST(req: NextRequest) {
   if (o.status === 'confirmed') {
     // Demo rider accepts and starts ~1 km from the customer
     const riderId = await demoRiderId(admin);
+    const split = splitFees(Number(o.delivery_fee), Number(o.safekeeping_fee));
     Object.assign(patch, {
       rider_id: riderId, rider_name: DEMO_RIDER.name, rider_phone: DEMO_RIDER.phone,
       status: 'assigned', assigned_at: now,
+      rider_earning: split.riderEarning, platform_fee: split.platformFee,
       rider_lat: home.lat + 0.008, rider_lng: home.lng - 0.005, rider_heading: 200,
     });
   } else {
@@ -102,12 +111,20 @@ export async function POST(req: NextRequest) {
     else if (o.status === 'on_the_way' && left <= ARRIVING_M) status = 'arriving';
     else if (o.status === 'arriving' && left <= ARRIVE_M) status = 'delivered';
     if (status) { patch.status = status; patch[`${status}_at`] = now; }
+    // Cash is paid to the rider at pickup
+    if (status === 'collected' && o.payment_method === 'cash') Object.assign(patch, { cash_collected_at: now, payment_status: 'paid' });
   }
 
   const { error } = await admin.from('orders').update(patch).eq('id', o.id).eq('status', o.status);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const newStatus = (patch.status as string) ?? o.status;
+  if (newStatus === 'delivered' && o.rider_id) {
+    const earning = Number(o.rider_earning ?? splitFees(Number(o.delivery_fee), Number(o.safekeeping_fee)).riderEarning);
+    const lines: Record<string, unknown>[] = [{ rider_id: o.rider_id, order_id: o.id, type: 'earning', amount: earning, note: `Order #${o.order_number}` }];
+    if (o.payment_method === 'cash') lines.push({ rider_id: o.rider_id, order_id: o.id, type: 'cash_kept', amount: -(Number(o.delivery_fee) + Number(o.safekeeping_fee)), note: `Cash kept · order #${o.order_number}` });
+    await admin.from('rider_ledger').upsert(lines, { onConflict: 'order_id,type', ignoreDuplicates: true });
+  }
   if (patch.status && NOTES[newStatus]) {
     const [title, msg] = NOTES[newStatus];
     await admin.from('notifications').insert({

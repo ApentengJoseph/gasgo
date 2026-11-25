@@ -1,12 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { Home, Flame, Package, User } from 'lucide-react';
 
-const RiderNavigation = dynamic(() => import('./RiderNav'), { ssr: false });
-const AdminNavigation = dynamic(() => import('./AdminNav'), { ssr: false });
 
 const tabs = [
   { href: '/',         label: 'Home',      icon: Home,    match: (p: string) => p === '/' },
@@ -18,8 +15,7 @@ const tabs = [
 /** Phone-only tab bar (desktop uses TopNav). */
 export default function BottomNavigation() {
   const pathname = usePathname() ?? '/';
-  if (pathname.startsWith('/rider')) return <RiderNavigation />;
-  if (pathname.startsWith('/admin')) return <AdminNavigation />;
+  if (pathname.startsWith('/rider') || pathname.startsWith('/admin')) return null; // own navigation
 
   return (
     <nav

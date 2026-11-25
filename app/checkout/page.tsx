@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { calculateDistance } from '@/lib/utils/pricing';
 import { quote } from '@/lib/utils/quote';
 import { fetchWithTimeout } from '@/lib/utils/timeout';
+import { track } from '@/components/Layout/Analytics';
 
 type Method = 'momo' | 'cash';
 const PENDING_KEY = 'gaso-pending-order';
@@ -45,6 +46,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     if (hydrated && !placed.current && !isOrderValid()) router.replace(order.stationId ? '/order' : '/stations');
   }, [hydrated, isOrderValid, order.stationId, router]);
+
+  // Funnel: reached checkout (once per visit)
+  const tracked = useRef(false);
+  useEffect(() => {
+    if (hydrated && !tracked.current && isOrderValid()) { tracked.current = true; track('checkout_start'); }
+  }, [hydrated, isOrderValid]);
 
   // Prefill from the saved profile
   useEffect(() => {
@@ -88,6 +95,7 @@ export default function CheckoutPage() {
     const d = await res.json();
     if (!res.ok || !d.orderId) throw new Error(d.error || 'We could not create your order.');
     const created = { orderId: d.orderId as string, total: Number(d.total), basketKey, uid };
+    track('order_placed', { cylinders: basket.reduce((n, i) => n + i.qty, 0) });
     localStorage.setItem(PENDING_KEY, JSON.stringify(created));
     return created;
   };
@@ -119,7 +127,7 @@ export default function CheckoutPage() {
         }
         const d = await res.json();
         if (!res.ok) throw new Error(d.error || 'Could not confirm your order.');
-        toast.success('Order placed! Pay the rider in cash.');
+        toast.success('Order placed! Pay the rider in cash when they pick up your cylinder.');
         finish(created.orderId);
       } else {
         setMomo(created);
@@ -201,7 +209,7 @@ export default function CheckoutPage() {
                   <Image src="/airtel-tigo-log.png" alt="" width={30} height={18} className="h-[18px] w-auto rounded" />
                 </span>
               </MethodButton>
-              <MethodButton active={method === 'cash'} onClick={() => setMethod('cash')} icon={Banknote} title="Cash" sub="Pay the rider when your gas is back" />
+              <MethodButton active={method === 'cash'} onClick={() => setMethod('cash')} icon={Banknote} title="Cash" sub="Pay the rider when they pick up your cylinder" />
             </div>
           </section>
         </div>

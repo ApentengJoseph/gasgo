@@ -10,12 +10,13 @@ import HowItWorks from '@/components/Home/HowItWorks';
 import Reveal from '@/components/UI/Reveal';
 import AreaMarquee from '@/components/Home/AreaMarquee';
 import HomeStickyCta from '@/components/Home/HomeStickyCta';
+import AskQuestion from '@/components/Home/AskQuestion';
 import { Logo } from '@/components/Navigation/TopNav';
 import { serviceAreas, priceFor } from '@/lib/data/stations';
 import { getStations } from '@/lib/data/getStations';
 import officeImg from '@/public/images/office-work.jpg';
 import boyImg from '@/public/images/hero-boy-cylinder.jpg';
-import riderImg from '@/public/images/rider-cylinders.jpg';
+import riderImg from '@/public/images/gas-delivery.jpg';
 import streetImg from '@/public/images/street-ghana.jpg';
 
 export const revalidate = 300; // refresh station prices every 5 minutes
@@ -27,7 +28,7 @@ const faqs = [
   { q: 'How does GasRefill work?', a: 'Book a refill and choose a partner station. A GasRefill rider comes to your house, picks up your empty cylinder, refills it at that station and brings it back full. You can follow every step live.' },
   { q: 'How much does delivery cost?', a: 'You pay the station’s gas price, plus a GH₵10 delivery fee, a GH₵5 safekeeping fee, and GH₵1.80 per km for the trip between the station and you (there and back). The full breakdown is shown before you pay.' },
   { q: 'Which areas do you cover?', a: `The Koforidua area, including ${serviceAreas.slice(1, 7).join(', ')} and nearby. If your address is outside our area, we tell you before you pay.` },
-  { q: 'How do I pay?', a: 'Mobile Money (MTN, Telecel or AirtelTigo, processed securely by Paystack) or cash to the rider on delivery.' },
+  { q: 'How do I pay?', a: 'Mobile Money (MTN, Telecel or AirtelTigo, processed securely by Paystack) or cash to the rider when they pick up your cylinder.' },
   { q: 'Do I need an account?', a: 'No. Choose your size and station, then add your name and phone number at checkout. You can save an account later if you want.' },
 ];
 
@@ -153,7 +154,7 @@ export default async function HomePage() {
               </ul>
             </div>
             <div className="relative min-h-[460px] md:min-h-[560px]">
-              <Image src={riderImg} alt="A rider transporting gas cylinders on a tricycle" fill placeholder="blur" loading="eager"
+              <Image src={riderImg} alt="A GasRefill delivery worker carrying a gas cylinder from the delivery truck" fill placeholder="blur" loading="eager"
                 sizes="(min-width: 1024px) 50vw, 100vw" className="object-cover object-[55%_50%]" />
               <div className="absolute inset-0 bg-gradient-to-t from-[rgba(23,19,15,0.55)] via-transparent to-transparent" />
               <div className="absolute left-4 right-4 bottom-4 md:left-10 md:right-10 md:bottom-10 max-w-md">
@@ -244,6 +245,7 @@ export default async function HomePage() {
             </details>
           ))}
         </div>
+        <AskQuestion />
       </section>
 
       </Reveal>
@@ -275,7 +277,6 @@ export default async function HomePage() {
             <Link href="/stations" className="hover:text-ink">Order gas</Link>
             <Link href="/orders" className="hover:text-ink">Track an order</Link>
             <Link href="#how-it-works" className="hover:text-ink">How it works</Link>
-            <Link href="/auth/login" className="hover:text-ink">Rider sign in</Link>
           </nav>
           <div className="md:ml-auto flex flex-wrap gap-2.5">
             <a href={`tel:${SUPPORT_PHONE_TEL}`} className="inline-flex items-center gap-2 h-11 px-5 rounded-full border border-line hover:border-ink font-medium transition-colors">

@@ -9,11 +9,11 @@ import { ChevronRight, Flame, ShoppingBag, Loader2, Plus, RotateCcw, CalendarClo
 import StatusBadge, { statusLabel } from '@/components/Badges/StatusBadge';
 import { PageHeader } from '@/components/UI/PageHeader';
 import { cylinderPhoto } from '@/components/Icons/GasCylinder';
-import { useGuestOrder, useOrderHydrated } from '@/lib/store/guestOrder';
+import { useGuestOrder, useOrderHydrated, basketOf } from '@/lib/store/guestOrder';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { itemsOf, loadReorder } from '@/lib/utils/reorder';
-import { describeItems } from '@/lib/utils/quote';
+import { shortLabel } from '@/lib/utils/quote';
 import type { Order } from '@/lib/types/database';
 
 const LIVE = ['confirmed', 'assigned', 'collected', 'at_station', 'on_the_way', 'arriving'];
@@ -122,7 +122,7 @@ export default function MyOrdersPage() {
               <span className="icon-box icon-box-md icon-box-flame"><ShoppingBag className="w-5 h-5" /></span>
               <span className="flex-1 min-w-0">
                 <span className="block font-bold text-ink">Finish your order</span>
-                <span className="block text-[0.8125rem] text-ink-muted truncate">{basket.cylinderName} · {basket.stationName}</span>
+                <span className="block text-[0.8125rem] text-ink-muted truncate">{shortLabel(basketOf(basket))} · {basket.stationName}</span>
               </span>
               <ChevronRight className="w-5 h-5 text-ink-faint" />
             </Link>
@@ -146,14 +146,14 @@ export default function MyOrdersPage() {
                               <StatusBadge status={o.status} />
                               <span className="text-[0.75rem] text-ink-faint">{day(o.created_at)}, {time(o.created_at)}</span>
                             </div>
-                            <p className="mt-1 font-bold text-ink truncate">{describeItems(items)}</p>
+                            <p className="mt-1 font-bold text-ink truncate">{shortLabel(items)}</p>
                             <p className="text-[0.8125rem] text-ink-muted truncate">{o.station_name}</p>
                           </div>
                           <span className="hidden sm:inline-flex h-10 px-4 items-center rounded-full btn-primary text-[0.875rem]">{o.status === 'pending' ? 'Pay now' : 'Track'}</span>
                           <ChevronRight className="sm:hidden w-5 h-5 text-ink-faint" />
                         </div>
                         {o.status === 'pending' && (
-                          <p className="mt-3 text-[0.8125rem] text-flame-deep font-semibold">Payment not received yet · tap to pay with MoMo or switch to cash</p>
+                          <p className="mt-3 text-[0.8125rem] text-flame-deep font-semibold">Payment not received · tap to finish</p>
                         )}
                         {step >= 0 && (
                           <div className="mt-4">
@@ -185,7 +185,7 @@ export default function MyOrdersPage() {
                       <Link href={`/orders/tracking?orderId=${o.id}`} className="flex items-center gap-3 flex-1 min-w-0">
                         <Thumb kg={items[0].kg} count={items.reduce((n, i) => n + i.qty, 0)} small />
                         <span className="flex-1 min-w-0">
-                          <span className="block font-semibold text-ink text-[0.9375rem] truncate">{describeItems(items)}</span>
+                          <span className="block font-semibold text-ink text-[0.9375rem] truncate">{shortLabel(items)}</span>
                           <span className="block text-[0.8125rem] text-ink-faint truncate">{o.station_name} · {day(o.created_at)}</span>
                         </span>
                         <span className="text-right shrink-0">

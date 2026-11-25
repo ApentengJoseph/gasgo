@@ -1,540 +1,233 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import {
-  BarChart3, Users, Truck, Package, TrendingUp,
-  DollarSign, Clock, MapPin, Flame, CheckCircle,
-  RefreshCw, Calendar, Zap, X, Search, UserCheck,
-  Loader2, AlertTriangle, ChevronDown,
-} from 'lucide-react';
-import toast from 'react-hot-toast';
-import GlassCard from '@/components/Cards/GlassCard';
-import StatusBadge from '@/components/Badges/StatusBadge';
-import PrimaryButton from '@/components/Buttons/PrimaryButton';
-import { createClient } from '@/lib/supabase/client';
-import type { Order, Profile, OrderStatus } from '@/lib/types/database';
+import { useState } from 'react';
+import Link from 'next/link';
+import { Bike, Wallet, MessageSquareText, Clock, RotateCcw, ChevronRight, AlertTriangle } from 'lucide-react';
+import { useAdmin, money, PageHead, Tabs, Loading, ErrorNote, Stat } from '@/components/Admin/ui';
 
-type Tab = 'overview' | 'orders' | 'riders';
+type Metrics = {
+  range: string;
+  orders: { total: number; delivered: number; live: number; cancelled: number; unpaid: number; completionRate: number; avgAcceptMinutes: number | null; avgDeliveryMinutes: number | null };
+  money: { gmv: number; gas: number; fees: number; riders: number; profit: number; cashShare: number; owedToRiders: number; owedByRiders: number; stationDue: number };
+  riders: { approved: number; pending: number; suspended: number; online: number };
+  customers: { new: number; ordering: number; repeat: number };
+  usage: { sessions: number; activeUsers: number; avgMinutes: number; mobileShare: number; signIns: number; devicesLinked: number; pageViews: number };
+  funnel: { label: string; value: number }[];
+  chart: { label: string; orders: number; delivered: number; revenue: number }[];
+  topStations: { name: string; orders: number }[];
+  attention: { pendingRiders: number; withdrawals: number; questions: number; waitingOrders: number; refunds: number };
+};
+type Range = 'today' | '7d' | '30d';
 
-const ORDER_STATUS_FILTERS: { label: string; value: OrderStatus | 'all' }[] = [
-  { label: 'All', value: 'all' },
-  { label: 'Pending', value: 'pending' },
-  { label: 'Confirmed', value: 'confirmed' },
-  { label: 'In Progress', value: 'on_the_way' },
-  { label: 'Delivered', value: 'delivered' },
-  { label: 'Cancelled', value: 'cancelled' },
-];
+// Validated categorical slots (blue, aqua, orange) — see the money split legend
+const SPLIT = { gas: '#2a78d6', riders: '#1baf7a', profit: '#eb6834' };
 
-interface DayStats {
-  orders: number;
-  revenue: number;
-  pendingOrders: number;
-  activeRiders: number;
-}
-
-export default function AdminDashboard() {
-  const router = useRouter();
-  const supabase = createClient();
-
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<Tab>('overview');
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [riders, setRiders] = useState<Profile[]>([]);
-  const [stats, setStats] = useState<DayStats>({ orders: 0, revenue: 0, pendingOrders: 0, activeRiders: 0 });
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
-  const [selectedRider, setSelectedRider] = useState<string | null>(null);
-  const [assigningRider, setAssigningRider] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [cancellingOrder, setCancellingOrder] = useState<string | null>(null);
-
-  // ─── Auth check ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const check = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { router.replace('/auth/login'); return; }
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      if (!prof || prof.role !== 'admin') { router.replace('/'); return; }
-      setProfile(prof);
-      setLoading(false);
-    };
-    check();
-  }, [supabase, router]);
-
-  // ─── Load data ─────────────────────────────────────────────────────────────
-  const loadOrders = useCallback(async () => {
-    const query = supabase
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    const { data } = await query;
-    if (data) setOrders(data);
-  }, [supabase]);
-
-  const loadRiders = useCallback(async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('role', 'rider')
-      .eq('is_active', true)
-      .order('is_online', { ascending: false });
-    if (data) setRiders(data);
-  }, [supabase]);
-
-  const loadStats = useCallback(async () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const { data: todayOrders } = await supabase
-      .from('orders')
-      .select('total, status')
-      .gte('created_at', today.toISOString());
-
-    const { data: activeRidersData } = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('role', 'rider')
-      .eq('is_online', true);
-
-    const ordersToday = todayOrders || [];
-    setStats({
-      orders: ordersToday.length,
-      revenue: ordersToday.filter((o) => o.status === 'delivered').reduce((s, o) => s + Number(o.total), 0),
-      pendingOrders: ordersToday.filter((o) => ['pending', 'confirmed'].includes(o.status)).length,
-      activeRiders: activeRidersData?.length || 0,
-    });
-  }, [supabase]);
-
-  const loadAll = useCallback(async () => {
-    await Promise.all([loadOrders(), loadRiders(), loadStats()]);
-  }, [loadOrders, loadRiders, loadStats]);
-
-  useEffect(() => { if (!loading) loadAll(); }, [loading, loadAll]);
-
-  // ─── Realtime subscriptions ────────────────────────────────────────────────
-  useEffect(() => {
-    if (loading) return;
-    const channel = supabase
-      .channel('admin-feed')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        loadOrders();
-        loadStats();
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `role=eq.rider` }, () => {
-        loadRiders();
-        loadStats();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [loading, supabase, loadOrders, loadRiders, loadStats]);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await loadAll();
-    setIsRefreshing(false);
-    toast.success('Dashboard refreshed');
-  };
-
-  // ─── Assign rider ──────────────────────────────────────────────────────────
-  const handleAssignRider = async () => {
-    if (!assigningOrder || !selectedRider) return;
-    setAssigningRider(true);
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        rider_id: selectedRider,
-        status: 'assigned',
-        assigned_at: new Date().toISOString(),
-      })
-      .eq('id', assigningOrder.id);
-
-    if (error) {
-      toast.error('Failed to assign rider');
-    } else {
-      toast.success('Rider assigned successfully!');
-      setAssigningOrder(null);
-      setSelectedRider(null);
-      await loadOrders();
-    }
-    setAssigningRider(false);
-  };
-
-  // ─── Cancel order ──────────────────────────────────────────────────────────
-  const handleCancelOrder = async (orderId: string) => {
-    setCancellingOrder(orderId);
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancellation_reason: 'Cancelled by admin',
-      })
-      .eq('id', orderId);
-
-    if (error) {
-      toast.error('Failed to cancel order');
-    } else {
-      toast.success('Order cancelled');
-      await loadOrders();
-    }
-    setCancellingOrder(null);
-  };
-
-  // ─── Filter orders ─────────────────────────────────────────────────────────
-  const filteredOrders = orders.filter((o) => {
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-    const matchesSearch = !searchQuery
-      || o.order_number.toLowerCase().includes(searchQuery.toLowerCase())
-      || o.delivery_address.toLowerCase().includes(searchQuery.toLowerCase())
-      || o.station_name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesStatus && matchesSearch;
-  });
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-10 h-10 text-brand-deep-blue animate-spin" />
-      </div>
-    );
-  }
+/** Control centre overview: what needs attention, money, orders, riders, customers and app usage. */
+export default function AdminOverview() {
+  const [range, setRange] = useState<Range>('7d');
+  const { data: m, error, loading, reload } = useAdmin<Metrics>(`/api/admin/metrics?range=${range}`, 60000);
+  const mins = (n: number | null) => (n == null ? '—' : n < 60 ? `${n} min` : `${Math.floor(n / 60)} h ${n % 60} min`);
+  const span = range === 'today' ? 'today' : range === '7d' ? 'in the last 7 days' : 'in the last 30 days';
 
   return (
-    <div className="space-y-5 py-5 pb-28">
-      {/* ── Header ───────────────────────────────────────────────────────────── */}
-      <GlassCard className="p-5 bg-gradient-to-br from-brand-deep-blue/5 to-brand-energy-orange/5 border-brand-deep-blue/20">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-deep-blue to-brand-corporate-blue rounded-2xl flex items-center justify-center shadow-lg">
-              <BarChart3 className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-xs text-gray-500">Operations control centre</p>
-            </div>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="p-2.5 rounded-xl bg-white shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
-          >
-            <RefreshCw className={`w-5 h-5 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </button>
-        </div>
-        <div className="flex items-center gap-4 pt-3 border-t border-gray-200 text-xs text-gray-500">
-          <div className="flex items-center gap-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            <span>{new Date().toLocaleDateString('en-GH', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-            <Zap className="w-3.5 h-3.5" />
-            <span>Live · All systems operational</span>
-          </div>
-        </div>
-      </GlassCard>
+    <>
+      <PageHead title="Overview" sub={`How GasRefill is doing ${span}`}>
+        <Tabs<Range> value={range} onChange={setRange} items={[{ id: 'today', label: 'Today' }, { id: '7d', label: '7 days' }, { id: '30d', label: '30 days' }]} />
+      </PageHead>
+      {error && <ErrorNote text={error} retry={reload} />}
+      {loading && !m ? <Loading /> : m && (
+        <div className="space-y-6">
+          <Attention a={m.attention} />
 
-      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
-      <div className="flex bg-gray-100 rounded-2xl p-1 gap-1">
-        {(['overview', 'orders', 'riders'] as Tab[]).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-semibold capitalize transition-all ${
-              tab === t ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t}
-          </button>
+          {/* Money */}
+          <section>
+            <h2 className="text-label text-ink-faint mb-2.5">Money (delivered orders)</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="GasRefill made" value={money(m.money.profit)} tone="flame" hint="Fees kept after paying riders" />
+              <Stat label="Riders earned" value={money(m.money.riders)} hint="Their share of pickup & return" />
+              <Stat label="Customers paid" value={money(m.money.gmv)} hint={`${m.money.cashShare}% paid in cash`} />
+              <Stat label="Gas (to stations)" value={money(m.money.gas)} hint="Passed straight to stations" />
+            </div>
+            <MoneySplit gas={m.money.gas} riders={m.money.riders} profit={m.money.profit} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+              <Stat label="We owe riders" value={money(m.money.owedToRiders)} hint="Wallet balances (all time)" />
+              <Stat label="Riders hold for us" value={money(m.money.owedByRiders)} tone={m.money.owedByRiders > 0 ? 'red' : undefined} hint="Cash from cash orders to collect" />
+              <Stat label="Owed to stations" value={money(m.money.stationDue)} hint="MoMo orders not yet settled" />
+            </div>
+          </section>
+
+          {/* Orders */}
+          <section>
+            <h2 className="text-label text-ink-faint mb-2.5">Orders</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Stat label="Delivered" value={m.orders.delivered} tone="green" hint={`${m.orders.completionRate}% of placed orders`} />
+              <Stat label="In progress now" value={m.orders.live} />
+              <Stat label="Cancelled" value={m.orders.cancelled} />
+              <Stat label="Not paid / abandoned" value={m.orders.unpaid} hint="Started but never confirmed" />
+              <Stat label="Time to accept" value={mins(m.orders.avgAcceptMinutes)} hint="Confirmed → rider accepts" />
+              <Stat label="Time to deliver" value={mins(m.orders.avgDeliveryMinutes)} hint="Confirmed → back at the door" />
+              <Stat label="Customers who ordered" value={m.customers.ordering} hint={`${m.customers.repeat} came back again`} />
+              <Stat label="New customers" value={m.customers.new} />
+            </div>
+            <OrdersChart rows={m.chart} hourly={m.range === 'today'} />
+          </section>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            {/* Funnel */}
+            <section>
+              <h2 className="text-label text-ink-faint mb-2.5">From visit to delivery</h2>
+              <Funnel steps={m.funnel} />
+            </section>
+            {/* Usage */}
+            <section>
+              <h2 className="text-label text-ink-faint mb-2.5">App use</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="Visits" value={m.usage.sessions} hint={`${m.usage.mobileShare}% on phones`} />
+                <Stat label="Average time in app" value={`${m.usage.avgMinutes} min`} hint="Per visit" />
+                <Stat label="Signed-in users" value={m.usage.activeUsers} />
+                <Stat label="Staff sign-ins" value={m.usage.signIns} hint={`${m.usage.devicesLinked} devices linked`} />
+              </div>
+            </section>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <section>
+              <h2 className="text-label text-ink-faint mb-2.5">Riders</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <Stat label="Online now" value={m.riders.online} tone="green" />
+                <Stat label="Approved" value={m.riders.approved} />
+                <Stat label="Waiting for approval" value={m.riders.pending} tone={m.riders.pending ? 'flame' : undefined} />
+                <Stat label="Paused" value={m.riders.suspended} />
+              </div>
+            </section>
+            <section>
+              <h2 className="text-label text-ink-faint mb-2.5">Busiest stations</h2>
+              {m.topStations.length === 0 ? (
+                <p className="rounded-3xl bg-white border border-line p-5 text-ink-muted">No deliveries {span} yet.</p>
+              ) : (
+                <ol className="rounded-3xl bg-white border border-line divide-y divide-line">
+                  {m.topStations.map((s, i) => (
+                    <li key={s.name} className="flex items-center gap-3 px-4 py-3">
+                      <span className="w-7 h-7 rounded-full bg-cream text-ink font-bold text-[0.8125rem] flex items-center justify-center">{i + 1}</span>
+                      <span className="flex-1 font-semibold text-ink truncate">{s.name}</span>
+                      <span className="tabular-nums text-ink-muted">{s.orders} deliveries</span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Attention({ a }: { a: Metrics['attention'] }) {
+  const items = [
+    { n: a.waitingOrders, label: 'orders waiting 10+ min for a rider', href: '/admin/orders?filter=waiting', icon: Clock, urgent: true },
+    { n: a.pendingRiders, label: 'rider applications to review', href: '/admin/riders', icon: Bike },
+    { n: a.withdrawals, label: 'rider payouts to send', href: '/admin/payouts', icon: Wallet },
+    { n: a.questions, label: 'customer questions to answer', href: '/admin/questions', icon: MessageSquareText },
+    { n: a.refunds, label: 'refunds to check', href: '/admin/orders?filter=refunds', icon: RotateCcw, urgent: true },
+  ].filter(i => i.n > 0);
+  if (!items.length) return <p className="rounded-3xl bg-[#E8F6EC] text-[#15803D] font-semibold px-5 py-4">All clear — nothing is waiting for you.</p>;
+  return (
+    <section className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {items.map(({ n, label, href, icon: Icon, urgent }) => (
+        <Link key={href} href={href} className={`rounded-3xl p-4 flex items-center gap-3 border ${urgent ? 'bg-[#FFF4EC] border-[#FFD9BD]' : 'bg-white border-line'} hover:shadow-md transition-shadow`}>
+          <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${urgent ? 'bg-flame text-white' : 'bg-cream text-ink'}`}>
+            {urgent ? <AlertTriangle className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
+          </span>
+          <span className="flex-1 text-[0.9375rem] text-ink"><b className="text-[1.125rem] tabular-nums">{n}</b> {label}</span>
+          <ChevronRight className="w-4 h-4 text-ink-faint" />
+        </Link>
+      ))}
+    </section>
+  );
+}
+
+/** Where each cedi of delivered orders went: stations, riders, GasRefill. Legend carries the values (no colour-only reading). */
+function MoneySplit({ gas, riders, profit }: { gas: number; riders: number; profit: number }) {
+  const total = gas + riders + profit;
+  if (total <= 0) return null;
+  const parts = [
+    { key: 'gas', label: 'Stations (gas)', v: gas, c: SPLIT.gas },
+    { key: 'riders', label: 'Riders', v: riders, c: SPLIT.riders },
+    { key: 'profit', label: 'GasRefill', v: profit, c: SPLIT.profit },
+  ];
+  return (
+    <div className="mt-3 rounded-3xl bg-white border border-line p-4">
+      <p className="text-[0.875rem] font-semibold text-ink mb-3">Where the money went</p>
+      <div className="flex h-4 gap-[2px] rounded-[4px] overflow-hidden" role="img" aria-label={parts.map(p => `${p.label} ${money(p.v)}`).join(', ')}>
+        {parts.filter(p => p.v > 0).map(p => (
+          <div key={p.key} style={{ width: `${(p.v / total) * 100}%`, background: p.c }} title={`${p.label}: ${money(p.v)} (${Math.round(p.v / total * 100)}%)`} />
         ))}
       </div>
-
-      {/* ── Overview tab ─────────────────────────────────────────────────────── */}
-      {tab === 'overview' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={<Package className="w-5 h-5 text-white" />} color="from-brand-deep-blue to-brand-corporate-blue"
-              label="Today's Orders" value={stats.orders.toString()} />
-            <StatCard icon={<DollarSign className="w-5 h-5 text-white" />} color="from-emerald-500 to-emerald-600"
-              label="Revenue" value={`GH₵${stats.revenue.toFixed(0)}`} />
-            <StatCard icon={<Clock className="w-5 h-5 text-white" />} color="from-amber-400 to-orange-500"
-              label="Pending" value={stats.pendingOrders.toString()} />
-            <StatCard icon={<Users className="w-5 h-5 text-white" />} color="from-purple-500 to-purple-600"
-              label="Active Riders" value={stats.activeRiders.toString()} />
-          </div>
-
-          {/* Recent orders */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-bold text-gray-900">Recent Orders</h2>
-              <button onClick={() => setTab('orders')} className="text-xs text-brand-deep-blue font-semibold">View all</button>
-            </div>
-            <div className="space-y-3">
-              {orders.slice(0, 5).map((order) => (
-                <OrderRow
-                  key={order.id}
-                  order={order}
-                  riders={riders}
-                  onAssign={setAssigningOrder}
-                  onCancel={handleCancelOrder}
-                  isCancelling={cancellingOrder === order.id}
-                />
-              ))}
-              {orders.length === 0 && (
-                <GlassCard className="p-8 text-center">
-                  <Package className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500 text-sm">No orders yet</p>
-                </GlassCard>
-              )}
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── Orders tab ───────────────────────────────────────────────────────── */}
-      {tab === 'orders' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search order #, address, station…"
-              className="input-field pl-10"
-            />
-          </div>
-
-          {/* Status filter pills */}
-          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {ORDER_STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                onClick={() => setStatusFilter(f.value)}
-                className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
-                  statusFilter === f.value
-                    ? 'bg-brand-deep-blue text-white border-brand-deep-blue'
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-brand-deep-blue/30'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-
-          <p className="text-xs text-gray-500">{filteredOrders.length} order{filteredOrders.length !== 1 ? 's' : ''}</p>
-
-          <div className="space-y-3">
-            {filteredOrders.map((order) => (
-              <OrderRow
-                key={order.id}
-                order={order}
-                riders={riders}
-                onAssign={setAssigningOrder}
-                onCancel={handleCancelOrder}
-                isCancelling={cancellingOrder === order.id}
-              />
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── Riders tab ───────────────────────────────────────────────────────── */}
-      {tab === 'riders' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
-          <p className="text-xs text-gray-500">{riders.length} registered riders · {stats.activeRiders} online</p>
-          {riders.map((rider) => (
-            <GlassCard key={rider.id} className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-brand-deep-blue to-brand-energy-orange flex items-center justify-center flex-shrink-0">
-                    <span className="text-white font-bold">{(rider.name || 'R').charAt(0).toUpperCase()}</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-gray-900 text-sm">{rider.name || 'Unnamed Rider'}</p>
-                    <p className="text-xs text-gray-500">{rider.phone}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    rider.is_online ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
-                  }`}>
-                    <div className={`w-1.5 h-1.5 rounded-full ${rider.is_online ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                    {rider.is_online ? 'Online' : 'Offline'}
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-          ))}
-          {riders.length === 0 && (
-            <GlassCard className="p-8 text-center">
-              <Truck className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500 text-sm">No riders registered yet</p>
-            </GlassCard>
-          )}
-        </motion.div>
-      )}
-
-      {/* ── Assign Rider Modal ───────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {assigningOrder && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 z-40 flex items-end"
-            onClick={() => setAssigningOrder(null)}
-          >
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full bg-white rounded-t-3xl p-6 max-h-[75vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Assign Rider</h3>
-                  <p className="text-xs text-gray-500">Order #{assigningOrder.order_number}</p>
-                </div>
-                <button onClick={() => setAssigningOrder(null)} className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-
-              <div className="space-y-2 mb-5">
-                {riders
-                  .filter((r) => r.is_online)
-                  .map((rider) => (
-                    <button
-                      key={rider.id}
-                      onClick={() => setSelectedRider(rider.id)}
-                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border-2 transition-all ${
-                        selectedRider === rider.id
-                          ? 'border-brand-deep-blue bg-brand-deep-blue/5'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-brand-deep-blue to-brand-energy-orange flex items-center justify-center">
-                          <span className="text-white text-sm font-bold">{(rider.name || 'R').charAt(0).toUpperCase()}</span>
-                        </div>
-                        <div className="text-left">
-                          <p className="font-semibold text-gray-900 text-sm">{rider.name || 'Rider'}</p>
-                          <div className="flex items-center gap-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                            <p className="text-xs text-emerald-600">Online</p>
-                          </div>
-                        </div>
-                      </div>
-                      {selectedRider === rider.id && <UserCheck className="w-5 h-5 text-brand-deep-blue" />}
-                    </button>
-                  ))}
-                {riders.filter((r) => r.is_online).length === 0 && (
-                  <div className="text-center py-6">
-                    <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-500">No riders online</p>
-                  </div>
-                )}
-              </div>
-
-              <PrimaryButton
-                fullWidth
-                size="lg"
-                onClick={handleAssignRider}
-                loading={assigningRider}
-                disabled={!selectedRider || assigningRider}
-              >
-                <UserCheck className="w-5 h-5" />
-                Assign Rider
-              </PrimaryButton>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-[0.8125rem]">
+        {parts.map(p => (
+          <li key={p.key} className="inline-flex items-center gap-2 text-ink-muted">
+            <span className="w-2.5 h-2.5 rounded-sm" style={{ background: p.c }} />
+            {p.label} <b className="text-ink tabular-nums">{money(p.v)}</b> <span className="text-ink-faint">({Math.round(p.v / total * 100)}%)</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
-function StatCard({ icon, color, label, value }: { icon: React.ReactNode; color: string; label: string; value: string }) {
+/** Orders per day (or hour today). One series; hover/tap a bar for the numbers. */
+function OrdersChart({ rows, hourly }: { rows: Metrics['chart']; hourly: boolean }) {
+  const max = Math.max(1, ...rows.map(r => r.orders));
+  const [hover, setHover] = useState<number | null>(null);
+  const label = (r: Metrics['chart'][number]) => hourly ? `${r.label}:00` : new Date(`${r.label}T00:00:00Z`).toLocaleDateString('en-GH', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const h = hover != null ? rows[hover] : null;
+  const total = rows.reduce((s, r) => s + r.orders, 0);
   return (
-    <GlassCard className="p-4">
-      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3 shadow-md`}>
-        {icon}
+    <div className="mt-3 rounded-3xl bg-white border border-line p-4">
+      <div className="flex items-baseline justify-between gap-3 mb-3">
+        <p className="text-[0.875rem] font-semibold text-ink">Orders placed {hourly ? 'by hour' : 'by day'}</p>
+        <p className="text-[0.8125rem] text-ink-muted tabular-nums min-h-5">
+          {h ? <>{label(h)} · <b className="text-ink">{h.orders}</b> placed · {h.delivered} delivered · {money(h.revenue)} made</> : <>{total} in total</>}
+        </p>
       </div>
-      <p className="text-xs text-gray-500 mb-1">{label}</p>
-      <p className="text-xl font-bold text-gray-900">{value}</p>
-    </GlassCard>
+      <div className="relative h-40 flex items-end gap-[2px] border-b border-line" onMouseLeave={() => setHover(null)}>
+        {[0.5, 1].map(f => <div key={f} className="absolute inset-x-0 border-t border-dashed border-line" style={{ bottom: `${f * 100}%` }} aria-hidden />)}
+        {rows.map((r, i) => (
+          <button key={r.label} onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onClick={() => setHover(i)}
+            aria-label={`${label(r)}: ${r.orders} orders, ${r.delivered} delivered`}
+            className="relative flex-1 h-full flex items-end group">
+            <span className={`w-full rounded-t-[4px] transition-colors ${hover === i ? 'bg-flame' : 'bg-ink'}`}
+              style={{ height: r.orders ? `${Math.max(3, (r.orders / max) * 100)}%` : '0%' }} />
+          </button>
+        ))}
+        <span className="absolute -left-0 -top-1 text-[0.6875rem] text-ink-faint tabular-nums bg-white pr-1">{max}</span>
+      </div>
+      <div className="flex justify-between mt-1.5 text-[0.6875rem] text-ink-faint">
+        <span>{label(rows[0])}</span><span>{label(rows[rows.length - 1])}</span>
+      </div>
+    </div>
   );
 }
 
-function OrderRow({
-  order, riders, onAssign, onCancel, isCancelling,
-}: {
-  order: Order;
-  riders: Profile[];
-  onAssign: (o: Order) => void;
-  onCancel: (id: string) => void;
-  isCancelling: boolean;
-}) {
-  const assignedRider = riders.find((r) => r.id === order.rider_id);
-  const canAssign = ['confirmed'].includes(order.status) && !order.rider_id;
-  const canCancel = ['pending', 'confirmed'].includes(order.status);
-
+function Funnel({ steps }: { steps: Metrics['funnel'] }) {
+  const top = Math.max(1, steps[0]?.value ?? 1);
   return (
-    <GlassCard className="p-4">
-      <div className="flex items-start justify-between mb-2">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Flame className="w-4 h-4 text-brand-energy-orange" />
-            <span className="font-bold text-gray-900 text-sm">#{order.order_number}</span>
-          </div>
-          <p className="text-xs text-gray-500">{order.cylinder_name} · {order.station_name}</p>
-        </div>
-        <StatusBadge status={order.status as any} />
-      </div>
-
-      <div className="flex items-center gap-1.5 text-xs text-gray-500 mb-3">
-        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-        <span className="truncate">{order.delivery_address}</span>
-      </div>
-
-      <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <div>
-          <p className="text-xs text-gray-400">Total</p>
-          <p className="font-bold text-gray-900 text-sm">GH₵{order.total.toFixed(2)}</p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {assignedRider && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="text-xs font-semibold text-emerald-700">{assignedRider.name || 'Rider'}</span>
+    <ol className="rounded-3xl bg-white border border-line p-4 space-y-3">
+      {steps.map((s, i) => {
+        const prev = i ? steps[i - 1].value : 0;
+        return (
+          <li key={s.label}>
+            <div className="flex justify-between text-[0.875rem] mb-1">
+              <span className="font-semibold text-ink">{s.label}</span>
+              <span className="tabular-nums text-ink-muted"><b className="text-ink">{s.value}</b>{i > 0 && prev > 0 && <> · {Math.round(s.value / prev * 100)}%</>}</span>
             </div>
-          )}
-          {canAssign && (
-            <PrimaryButton size="sm" onClick={() => onAssign(order)}>
-              Assign Rider
-            </PrimaryButton>
-          )}
-          {canCancel && (
-            <button
-              onClick={() => onCancel(order.id)}
-              disabled={isCancelling}
-              className="p-1.5 rounded-lg hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors"
-            >
-              {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
-            </button>
-          )}
-        </div>
-      </div>
-    </GlassCard>
+            <div className="h-2.5 rounded-full bg-cream overflow-hidden">
+              <div className="h-full rounded-full bg-flame" style={{ width: `${Math.min(100, (s.value / top) * 100)}%` }} />
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

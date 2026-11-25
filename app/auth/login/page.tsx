@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, Eye, EyeOff } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Logo } from '@/components/Navigation/TopNav';
+import { RedeemCode } from '@/components/Account/DeviceLink';
 
 /**
  * Sign in for saved accounts (customers who added an email), riders and admins.
@@ -76,7 +77,8 @@ function Login() {
             </button>
           </form>
         </div>
-        <p className="mt-6 text-center text-[0.9375rem] text-ink-muted">
+        <div className="mt-5 text-center"><RedeemCode compact /></div>
+        <p className="mt-5 text-center text-[0.9375rem] text-ink-muted">
           New here? <Link href="/stations" className="font-semibold text-ink underline underline-offset-2">Just order. No account needed.</Link>
         </p>
       </div>

@@ -1,201 +1,194 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import GlassCard from '@/components/Cards/GlassCard';
-import StatusBadge from '@/components/Badges/StatusBadge';
-import { 
-  ArrowLeft, Flame, MapPin, Phone, 
-  User, Truck, DollarSign, Clock,
-  Calendar, Package
-} from 'lucide-react';
-import { motion } from 'framer-motion';
+import Link from 'next/link';
+import toast from 'react-hot-toast';
+import { ArrowLeft, Phone, MessageCircle, MapPin, Store, Bike, Banknote, Smartphone, Check, Loader2 } from 'lucide-react';
+import { useAdmin, adminSend, money, when, Loading, ErrorNote, OrderPill, PromptSheet, Sheet, orderStatusLabel } from '@/components/Admin/ui';
+import { RIDER_NEXT, RIDER_ACTION_LABEL, type Status } from '@/lib/orders/rules';
 
-// Mock order data - replace with API call
-const mockOrder = {
-  id: 'GAS12347',
-  status: 'pending' as const,
-  customerName: 'Kojo Asante',
-  customerPhone: '+233 XX XXX XXXX',
-  customerLocation: 'Tema, Accra',
-  stationName: 'Energy Plus',
-  stationAddress: '123 Main Street, Tema',
-  size: '25kg',
-  amount: 245.00,
-  rider: null,
-  createdAt: '2024-01-16T09:30:00',
-  deliveryInstructions: 'Call when you arrive',
+type Detail = {
+  order: Record<string, any>;
+  photo: string | null;
+  payments: { reference: string; amount: number; status: string; channel: string | null; paid_at: string | null; created_at: string }[];
+  ledger: { type: string; amount: number; created_at: string }[];
+  station: { name: string; address: string | null; phone: string | null } | null;
+  latePayments: { reference: string; outcome: string; created_at: string }[];
+  riders: { id: string; name: string; phone: string; vehicle: string; online: boolean }[];
 };
 
-export default function OrderDetailPage() {
-  const router = useRouter();
-  const params = useParams();
-  const orderId = params?.id as string;
+const STEPS: [string, string][] = [
+  ['created_at', 'Placed'], ['confirmed_at', 'Confirmed'], ['assigned_at', 'Rider accepted'], ['collected_at', 'Picked up empty'],
+  ['at_station_at', 'At station'], ['on_the_way_at', 'Bringing back'], ['arriving_at', 'Arriving'], ['delivered_at', 'Delivered'], ['cancelled_at', 'Cancelled'],
+];
+const wa = (p?: string | null) => (p ? `https://wa.me/233${p.replace(/\D/g, '').replace(/^233/, '').replace(/^0/, '')}` : '');
 
-  const [order] = useState(mockOrder);
+export default function AdminOrderPage({ params }: { params: { id: string } }) {
+  const { data, error, loading, reload } = useAdmin<Detail>(`/api/admin/orders/${params.id}`, 15000);
+  const [sheet, setSheet] = useState<'cancel' | 'assign' | 'cash' | null>(null);
+  const [busy, setBusy] = useState('');
+
+  const act = async (action: string, body: Record<string, unknown> = {}, ok = 'Done') => {
+    setBusy(action);
+    try { const r = await adminSend(`/api/admin/orders/${params.id}/${action}`, body); toast.success(r.note || ok); await reload(); }
+    catch (e) { toast.error((e as Error).message); }
+    setBusy('');
+  };
+
+  if (loading && !data) return <Loading />;
+  if (error && !data) return <ErrorNote text={error} retry={reload} />;
+  if (!data) return null;
+  const o = data.order;
+  const finished = o.status === 'delivered' || o.status === 'cancelled';
+  const next = (RIDER_NEXT[o.status as Status] ?? [])[0];
+  const cash = o.payment_method === 'cash';
+  const items: { kg: number; qty: number; unit: number }[] = Array.isArray(o.items) ? o.items : [];
 
   return (
-    <div className="space-y-6 py-6 pb-24">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex items-center gap-4"
-      >
-        <button
-          onClick={() => router.back()}
-          className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5 text-gray-600" />
-        </button>
-        <div className="flex-1">
-          <h1 className="text-title-lg font-bold text-gray-900">Order Details</h1>
-          <p className="text-sm text-gray-500">View order information</p>
+    <div className="max-w-4xl">
+      <Link href="/admin/orders" className="inline-flex items-center gap-1.5 text-ink-muted text-[0.875rem] mb-3"><ArrowLeft className="w-4 h-4" /> Orders</Link>
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <h1 className="text-[1.625rem] md:text-[2rem] font-extrabold tracking-tight text-ink">#{o.order_number}</h1>
+        <OrderPill status={o.status} />
+        {o.refund_status && <span className={`pill ${o.refund_status === 'refunded' ? 'pill-success' : 'pill-warning'}`}>Refund {o.refund_status}</span>}
+      </div>
+
+      {/* Actions */}
+      {!finished && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {['confirmed', 'assigned'].includes(o.status) && (
+            <button onClick={() => setSheet('assign')} className="h-11 px-5 rounded-full btn-primary text-[0.875rem]">{o.rider_id ? 'Change rider' : 'Assign a rider'}</button>
+          )}
+          {o.status === 'assigned' && (
+            <button onClick={() => act('unassign', {}, 'Back to waiting for a rider')} disabled={!!busy} className="h-11 px-5 rounded-full btn-ghost !bg-white text-[0.875rem]">Remove rider</button>
+          )}
+          {next && o.rider_id && (
+            <button onClick={() => (next === 'collected' && cash ? setSheet('cash') : act('advance', { next }, `Moved to “${orderStatusLabel(next)}”`))} disabled={!!busy}
+              className="h-11 px-5 rounded-full btn-ghost !bg-white text-[0.875rem]">
+              {busy === 'advance' ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Mark: {RIDER_ACTION_LABEL[o.status as Status]}</>}
+            </button>
+          )}
+          <button onClick={() => setSheet('cancel')} className="h-11 px-5 rounded-full bg-white border border-[#F3C4C4] text-[#B91C1C] font-semibold text-[0.875rem]">Cancel order</button>
         </div>
-        <StatusBadge status={order.status} />
-      </motion.div>
-
-      {/* Order Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
-      >
-        <GlassCard className="p-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-14 h-14 bg-gradient-to-br from-brand-energy-orange to-brand-energy-orange/70 rounded-xl flex items-center justify-center">
-              <Flame className="w-7 h-7 text-white" />
-            </div>
-            <div className="flex-1">
-              <h2 className="text-title-md font-bold text-gray-900">Order #{order.id}</h2>
-              <p className="text-sm text-gray-500">
-                {new Date(order.createdAt).toLocaleString('en-GB', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </p>
-            </div>
-          </div>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-              <div className="flex items-center gap-3">
-                <Package className="w-5 h-5 text-brand-energy-orange" />
-                <div>
-                  <p className="text-xs text-gray-500">Cylinder Size</p>
-                  <p className="font-semibold text-gray-900">{order.size}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-gray-500">Amount</p>
-                <p className="text-lg font-bold text-brand-safety-green">GH₵{order.amount.toFixed(2)}</p>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-      </motion.div>
-
-      {/* Customer Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
-      >
-        <GlassCard className="p-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-deep-blue/10 to-brand-deep-blue/5 rounded-xl flex items-center justify-center">
-              <User className="w-6 h-6 text-brand-deep-blue" />
-            </div>
-            <h2 className="text-title-md font-bold text-gray-900">Customer</h2>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Name</p>
-              <p className="font-semibold text-gray-900">{order.customerName}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Phone</p>
-              <a href={`tel:${order.customerPhone}`} className="font-semibold text-brand-deep-blue hover:underline">
-                {order.customerPhone}
-              </a>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Delivery Address</p>
-              <p className="font-semibold text-gray-900">{order.customerLocation}</p>
-            </div>
-            {order.deliveryInstructions && (
-              <div className="pt-3 border-t border-gray-200">
-                <p className="text-xs text-gray-500 mb-1">Delivery Instructions</p>
-                <p className="text-sm text-gray-700">{order.deliveryInstructions}</p>
-              </div>
-            )}
-          </div>
-        </GlassCard>
-      </motion.div>
-
-      {/* Station Info */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
-      >
-        <GlassCard className="p-6">
-          <div className="flex items-center gap-4 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-brand-energy-orange/10 to-brand-energy-orange/5 rounded-xl flex items-center justify-center">
-              <Truck className="w-6 h-6 text-brand-energy-orange" />
-            </div>
-            <h2 className="text-title-md font-bold text-gray-900">Station</h2>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Station Name</p>
-              <p className="font-semibold text-gray-900">{order.stationName}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 mb-1">Address</p>
-              <p className="font-semibold text-gray-900">{order.stationAddress}</p>
-            </div>
-          </div>
-        </GlassCard>
-      </motion.div>
-
-      {/* Rider Info */}
-      {order.rider ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.4 }}
-        >
-          <GlassCard className="p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-brand-safety-green/10 to-brand-safety-green/5 rounded-xl flex items-center justify-center">
-                <User className="w-6 h-6 text-brand-safety-green" />
-              </div>
-              <h2 className="text-title-md font-bold text-gray-900">Assigned Rider</h2>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">{order.rider}</p>
-            </div>
-          </GlassCard>
-        </motion.div>
-      ) : (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.4 }}
-        >
-          <button
-            onClick={() => router.push(`/admin/orders/${order.id}/assign`)}
-            className="w-full px-6 py-4 bg-brand-deep-blue text-white hover:bg-brand-corporate-blue active:bg-brand-deep-blue/90 font-semibold transition-all duration-200 rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-          >
-            <User className="w-5 h-5" />
-            <span>Assign Rider</span>
-          </button>
-        </motion.div>
       )}
+      {o.status === 'delivered' && o.payment_method === 'mobile_money' && !o.station_settled_at && (
+        <div className="mb-5 rounded-3xl bg-[#FFF4EC] border border-[#FFD9BD] p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[0.9375rem] text-ink">Pay <b>{data.station?.name}</b> {money(o.subtotal)} for the gas.</p>
+          <button onClick={() => act('settle', {}, 'Marked as paid to the station')} disabled={!!busy} className="h-10 px-5 rounded-full btn-primary text-[0.875rem]">I’ve paid the station</button>
+        </div>
+      )}
+      {o.refund_status === 'pending' && (
+        <div className="mb-5 rounded-3xl bg-[#FEF3DC] p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[0.9375rem] text-[#92400E]">The MoMo refund didn’t go through yet.</p>
+          <button onClick={() => act('refund', {}, 'Refund sent')} disabled={!!busy} className="h-10 px-5 rounded-full btn-primary text-[0.875rem]">Try refund again</button>
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-[1.2fr_1fr] gap-4">
+        <div className="space-y-4">
+          <Card title="Customer">
+            <p className="font-semibold text-ink">{o.contact_name || 'Customer'}</p>
+            <p className="text-ink-muted text-[0.9375rem]">{o.contact_phone}</p>
+            <div className="flex items-start gap-2 mt-3 text-[0.9375rem]"><MapPin className="w-4 h-4 mt-0.5 text-ink-faint shrink-0" /><span>{o.delivery_address}{o.delivery_notes && <span className="block text-ink-muted text-[0.8125rem]">“{o.delivery_notes}”</span>}</span></div>
+            {o.contact_phone && <Contact phone={o.contact_phone} />}
+          </Card>
+          <Card title="Rider">
+            {o.rider_id ? (
+              <>
+                <p className="font-semibold text-ink inline-flex items-center gap-2"><Bike className="w-4 h-4" /> {o.rider_name}</p>
+                <p className="text-ink-muted text-[0.9375rem]">{o.rider_phone}</p>
+                {o.rider_phone && <Contact phone={o.rider_phone} />}
+                <Link href={`/admin/riders/${o.rider_id}`} className="mt-3 inline-block text-[0.875rem] font-semibold text-flame-deep">View rider</Link>
+              </>
+            ) : <p className="text-ink-muted">No rider yet.</p>}
+          </Card>
+          <Card title="Station">
+            <p className="font-semibold text-ink inline-flex items-center gap-2"><Store className="w-4 h-4" /> {o.station_name}</p>
+            {data.station?.address && <p className="text-ink-muted text-[0.875rem]">{data.station.address}</p>}
+            {o.station_settled_at && <p className="mt-2 pill pill-success">Station paid {when(o.station_settled_at)}</p>}
+          </Card>
+          {data.photo && (
+            <Card title="Refill photo">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <a href={data.photo} target="_blank" rel="noopener noreferrer"><img src={data.photo} alt="Refilled cylinder" className="rounded-2xl max-h-72 object-cover" /></a>
+            </Card>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          <Card title="Money">
+            <dl className="space-y-1.5 text-[0.9375rem]">
+              {items.map(i => <Row key={i.kg} k={`${i.qty} × ${i.kg} kg`} v={money(i.unit * i.qty)} />)}
+              <Row k="Pickup & return" v={money(o.delivery_fee)} />
+              <Row k="Safekeeping" v={money(o.safekeeping_fee)} />
+              <div className="border-t border-dashed border-line pt-1.5"><Row k={<b>Total</b>} v={<b>{money(o.total)}</b>} /></div>
+              {o.rider_earning != null && <>
+                <Row k="Rider earns" v={money(o.rider_earning)} muted />
+                <Row k="GasRefill keeps" v={money(o.platform_fee)} muted />
+              </>}
+            </dl>
+            <p className="mt-3 inline-flex items-center gap-1.5 text-[0.875rem] text-ink-muted">
+              {cash ? <Banknote className="w-4 h-4" /> : <Smartphone className="w-4 h-4" />}
+              {cash ? (o.cash_collected_at ? `Cash collected ${when(o.cash_collected_at)}` : 'Cash at pickup (not yet collected)') : o.payment_status === 'paid' ? 'Paid with MoMo' : `MoMo ${o.payment_status ?? 'not paid'}`}
+            </p>
+            {data.payments.map(p => <p key={p.reference} className="text-[0.75rem] text-ink-faint mt-1 break-all">Paystack {p.reference} · {p.status}</p>)}
+            {data.latePayments.map(p => <p key={p.reference} className="text-[0.75rem] text-[#B45309] mt-1 break-all">Late payment {p.reference} · {p.outcome}</p>)}
+          </Card>
+          <Card title="Timeline">
+            <ol className="space-y-2">
+              {STEPS.filter(([k]) => o[k]).map(([k, label]) => (
+                <li key={k} className="flex items-center gap-2.5 text-[0.875rem]">
+                  <span className={`w-5 h-5 rounded-full flex items-center justify-center ${k === 'cancelled_at' ? 'bg-[#FDECEC] text-[#B91C1C]' : 'bg-[#E8F6EC] text-[#15803D]'}`}><Check className="w-3 h-3" /></span>
+                  <span className="flex-1 text-ink">{label}</span><span className="text-ink-muted tabular-nums">{when(o[k])}</span>
+                </li>
+              ))}
+            </ol>
+            {o.cancellation_reason && <p className="mt-3 text-[0.8125rem] text-ink-muted">Reason: {o.cancellation_reason} {o.cancelled_by && `(by ${o.cancelled_by})`}</p>}
+          </Card>
+        </div>
+      </div>
+
+      <PromptSheet open={sheet === 'cancel'} onClose={() => setSheet(null)} title={`Cancel #${o.order_number}?`} danger
+        label={`Reason (the customer sees this).${o.payment_status === 'paid' && !cash ? ' Their MoMo payment will be refunded.' : ''}${o.cash_collected_at ? ' The rider already has their cash — make sure it’s returned.' : ''}`}
+        placeholder="e.g. Station out of gas" cta="Cancel order"
+        onSubmit={async reason => { await adminSend(`/api/admin/orders/${params.id}/cancel`, { reason }); toast.success('Order cancelled'); await reload(); }} />
+
+      <Sheet open={sheet === 'assign'} onClose={() => setSheet(null)} title="Choose a rider">
+        {data.riders.length === 0 ? <p className="text-ink-muted">No approved riders yet.</p> : (
+          <ul className="space-y-2 max-h-[60vh] overflow-y-auto">
+            {[...data.riders].sort((a, b) => Number(b.online) - Number(a.online)).map(r => (
+              <li key={r.id}>
+                <button disabled={!!busy || r.id === o.rider_id} onClick={async () => { await act('assign', { riderId: r.id }, `Given to ${r.name}`); setSheet(null); }}
+                  className="w-full flex items-center gap-3 p-3 rounded-2xl border border-line text-left hover:bg-cream disabled:opacity-50">
+                  <span className={`w-2.5 h-2.5 rounded-full ${r.online ? 'bg-[#16A34A]' : 'bg-line'}`} />
+                  <span className="flex-1"><b className="text-ink">{r.name}</b><span className="block text-[0.8125rem] text-ink-muted">{r.online ? 'Online' : 'Offline'} · {r.vehicle} · {r.phone}</span></span>
+                  {r.id === o.rider_id && <span className="pill pill-gray">Current</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Sheet>
+
+      <Sheet open={sheet === 'cash'} onClose={() => setSheet(null)} title="Cash collected?">
+        <p className="text-ink-muted">Only confirm if the rider told you they collected <b className="text-ink">{money(o.total)}</b> in cash from the customer.</p>
+        <button onClick={async () => { await act('advance', { next: 'collected', cashCollected: true }, 'Marked as picked up'); setSheet(null); }} className="mt-4 w-full h-12 rounded-full btn-primary">Yes, cash collected</button>
+      </Sheet>
+    </div>
+  );
+}
+
+function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="rounded-3xl bg-white border border-line p-4 md:p-5"><h2 className="text-label text-ink-faint mb-2.5">{title}</h2>{children}</section>;
+}
+function Row({ k, v, muted }: { k: React.ReactNode; v: React.ReactNode; muted?: boolean }) {
+  return <div className={`flex justify-between gap-3 ${muted ? 'text-ink-muted text-[0.875rem]' : 'text-ink'}`}><dt>{k}</dt><dd className="tabular-nums">{v}</dd></div>;
+}
+function Contact({ phone }: { phone: string }) {
+  return (
+    <div className="flex gap-2 mt-3">
+      <a href={`tel:${phone}`} className="h-9 px-4 rounded-full bg-ink text-white text-[0.8125rem] font-semibold inline-flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" /> Call</a>
+      <a href={wa(phone)} target="_blank" rel="noopener noreferrer" className="h-9 px-4 rounded-full bg-[#E8F6EC] text-[#15803D] text-[0.8125rem] font-semibold inline-flex items-center gap-1.5"><MessageCircle className="w-3.5 h-3.5" /> WhatsApp</a>
     </div>
   );
 }
